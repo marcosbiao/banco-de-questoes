@@ -1,0 +1,11 @@
+{
+  "name": "banco-questoes-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "import:mock": "node scripts/import-mock-firestore-to-firebase.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.10.0"
+  }
+}

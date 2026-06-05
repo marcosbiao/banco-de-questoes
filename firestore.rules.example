@@ -1,0 +1,47 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner() {
+      return request.auth != null
+        && request.auth.uid == "COLOQUE_AQUI_SEU_UID";
+    }
+
+    match /disciplinas/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    match /assuntos/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    match /subassuntos/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    match /tags/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    match /questoes/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    match /listas/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// Alternativa menos recomendada, usando e-mail:
+//
+// function isOwnerByEmail() {
+//   return request.auth != null
+//     && request.auth.token.email == "seu-email@example.com";
+// }
+//
+// Prefira UID, porque ele não muda quando o usuário altera e-mail.
