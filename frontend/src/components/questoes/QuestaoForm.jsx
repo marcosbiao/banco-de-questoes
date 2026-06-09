@@ -1,4 +1,4 @@
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { ImagePlus, Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   criarAssunto,
@@ -8,6 +8,8 @@ import {
   listarDisciplinas,
   listarSubassuntos,
 } from '../../services/questoesService.js';
+import { removerImagemQuestaoStorage, uploadImagemQuestao } from '../../services/firebase/questaoImagensStorageService.js';
+import { normalizarImagensQuestao } from '../../utils/questionImages.js';
 import QuickCreateSelect from '../forms/QuickCreateSelect.jsx';
 import TagInput from '../tags/TagInput.jsx';
 import Button from '../ui/Button.jsx';
@@ -31,6 +33,8 @@ const questaoInicial = {
   assuntoId: '',
   subassuntoId: '',
   tipo: 'discursiva',
+  textoAntesCodigo: '',
+  codigo: '',
   enunciado: '',
   alternativas: [],
   dificuldade: '',
@@ -42,6 +46,7 @@ const questaoInicial = {
   explicacao: '',
   observacaoPedagogica: '',
   status: 'ativa',
+  imagens: [],
   anexos: [],
 };
 
@@ -59,6 +64,7 @@ function toFormData(questao) {
     dificuldade: questao.dificuldade === 'media' ? 'medio' : questao.dificuldade || '',
     tags: questao.tagsNomes || questao.tags || [],
     alternativas: Array.isArray(questao.alternativas) ? questao.alternativas : [],
+    imagens: normalizarImagensQuestao(questao.imagens),
   };
 }
 
@@ -68,6 +74,21 @@ function alternativaVazia(index) {
     texto: '',
     correta: false,
   };
+}
+
+function enunciadoCodigo(questao) {
+  return [questao.textoAntesCodigo, questao.codigo]
+    .map((item) => (item || '').toString().trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function enunciadoParaSalvar(questao) {
+  if (questao.tipo !== 'codigo_analise') {
+    return (questao.enunciado || '').trim();
+  }
+
+  return enunciadoCodigo(questao) || (questao.enunciado || '').trim();
 }
 
 function addOrReplaceById(items, nextItem) {
@@ -86,11 +107,14 @@ export default function QuestaoForm({
   const [form, setForm] = useState(() => toFormData(initialData));
   const [opcoes, setOpcoes] = useState({ disciplinas: [], assuntos: [], subassuntos: [] });
   const [savingAction, setSavingAction] = useState('');
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadedImagePaths, setUploadedImagePaths] = useState([]);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
     setForm(toFormData(initialData));
+    setUploadedImagePaths([]);
   }, [initialData]);
 
   useEffect(() => {
@@ -119,6 +143,12 @@ export default function QuestaoForm({
     setForm((current) => ({
       ...current,
       [field]: value,
+      ...(field === 'tipo' && value === 'codigo_analise' && !current.textoAntesCodigo && !current.codigo && current.enunciado
+        ? { textoAntesCodigo: current.enunciado }
+        : {}),
+      ...(field === 'tipo' && value !== 'codigo_analise' && current.tipo === 'codigo_analise'
+        ? { enunciado: enunciadoParaSalvar(current) }
+        : {}),
       ...(field === 'disciplinaId' ? { assuntoId: '', subassuntoId: '' } : {}),
       ...(field === 'assuntoId' ? { subassuntoId: '' } : {}),
       ...(field === 'tipo' && value === 'multipla_escolha' && current.alternativas.length === 0
@@ -189,6 +219,75 @@ export default function QuestaoForm({
     });
   }
 
+  async function handleImageUpload(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+
+    if (!files.length) return;
+
+    setUploadingImages(true);
+    setError('');
+    setFeedback('');
+
+    const uploaded = [];
+    const errors = [];
+
+    for (const file of files) {
+      try {
+        uploaded.push(await uploadImagemQuestao(file));
+      } catch (apiError) {
+        errors.push(apiError.message || `Falha ao enviar ${file.name}.`);
+      }
+    }
+
+    try {
+      if (uploaded.length) {
+        setForm((current) => ({
+          ...current,
+          imagens: [...normalizarImagensQuestao(current.imagens), ...uploaded],
+        }));
+        setUploadedImagePaths((current) => [...new Set([...current, ...uploaded.map((imagem) => imagem.path).filter(Boolean)])]);
+        setFeedback(uploaded.length === 1 ? 'Imagem enviada.' : `${uploaded.length} imagens enviadas.`);
+      }
+
+      if (errors.length) {
+        setError(errors.join(' '));
+      }
+    } finally {
+      setUploadingImages(false);
+    }
+  }
+
+  function updateImagem(index, field, value) {
+    setForm((current) => ({
+      ...current,
+      imagens: normalizarImagensQuestao(current.imagens).map((imagem, imagemIndex) => (
+        imagemIndex === index ? { ...imagem, [field]: value } : imagem
+      )),
+    }));
+  }
+
+  async function removeImagem(index) {
+    const imagens = normalizarImagensQuestao(form.imagens);
+    const imagem = imagens[index];
+
+    if (!imagem) return;
+
+    setForm((current) => ({
+      ...current,
+      imagens: normalizarImagensQuestao(current.imagens).filter((_, imagemIndex) => imagemIndex !== index),
+    }));
+
+    if (imagem.path && uploadedImagePaths.includes(imagem.path)) {
+      try {
+        await removerImagemQuestaoStorage(imagem.path);
+        setUploadedImagePaths((current) => current.filter((path) => path !== imagem.path));
+      } catch (apiError) {
+        setError(apiError.message || 'Imagem removida da questão, mas não foi possível apagar o arquivo enviado.');
+      }
+    }
+  }
+
   function validateForm() {
     if (!form.disciplinaId) {
       setError('Selecione uma disciplina.');
@@ -205,7 +304,7 @@ export default function QuestaoForm({
       return false;
     }
 
-    if (!form.enunciado.trim()) {
+    if (!enunciadoParaSalvar(form)) {
       setError('Informe o enunciado da questão.');
       return false;
     }
@@ -242,16 +341,21 @@ export default function QuestaoForm({
     try {
       const payload = {
         ...form,
+        textoAntesCodigo: form.tipo === 'codigo_analise' ? form.textoAntesCodigo.trim() : '',
+        codigo: form.tipo === 'codigo_analise' ? form.codigo.trim() : '',
+        enunciado: enunciadoParaSalvar(form),
         subassuntoId: form.subassuntoId || '',
         dificuldade: form.dificuldade || null,
         nivelBloom: form.nivelBloom || null,
         tags: form.tags,
+        imagens: normalizarImagensQuestao(form.imagens),
         alternativas: form.tipo === 'multipla_escolha'
           ? form.alternativas.filter((alternativa) => alternativa.texto.trim())
           : [],
       };
 
       await onSubmit(payload, { cadastrarOutra });
+      setUploadedImagePaths([]);
 
       if (cadastrarOutra) {
         setFeedback('Questão salva. Você já pode cadastrar outra.');
@@ -266,6 +370,8 @@ export default function QuestaoForm({
       setSavingAction('');
     }
   }
+
+  const imagens = normalizarImagensQuestao(form.imagens);
 
   return (
     <div className="form-preview-grid">
@@ -311,16 +417,115 @@ export default function QuestaoForm({
             requiredMark
             onChange={(event) => update('tipo', event.target.value)}
           />
-          <Textarea
-            label="Enunciado"
-            name="enunciado"
-            className="span-2"
-            rows={7}
-            value={form.enunciado}
-            onChange={(event) => update('enunciado', event.target.value)}
-            requiredMark
-            required
-          />
+          {form.tipo === 'codigo_analise' ? (
+            <>
+              <Textarea
+                label="Texto antes do código"
+                name="textoAntesCodigo"
+                className="span-2"
+                rows={4}
+                value={form.textoAntesCodigo}
+                onChange={(event) => update('textoAntesCodigo', event.target.value)}
+                requiredMark
+              />
+              <Textarea
+                label="Código"
+                name="codigo"
+                className="span-2"
+                inputClassName="code-textarea"
+                rows={10}
+                value={form.codigo}
+                onChange={(event) => update('codigo', event.target.value)}
+                requiredMark
+              />
+              {form.enunciado && !form.textoAntesCodigo && !form.codigo ? (
+                <Textarea
+                  label="Enunciado legado"
+                  name="enunciado"
+                  className="span-2"
+                  rows={5}
+                  value={form.enunciado}
+                  onChange={(event) => update('enunciado', event.target.value)}
+                />
+              ) : null}
+            </>
+          ) : (
+            <Textarea
+              label="Enunciado"
+              name="enunciado"
+              className="span-2"
+              rows={7}
+              value={form.enunciado}
+              onChange={(event) => update('enunciado', event.target.value)}
+              requiredMark
+              required
+            />
+          )}
+
+          <div className="span-2 question-images-panel">
+            <div className="inline-title">
+              <div>
+                <p className="eyebrow">Imagens</p>
+                <h3>Imagens da questão</h3>
+              </div>
+              <div className="page-actions">
+                <label
+                  className={`button button-secondary button-md ${uploadingImages ? 'button-disabled' : ''}`}
+                  htmlFor="questao-imagens-upload"
+                  aria-disabled={uploadingImages}
+                >
+                  <ImagePlus size={18} aria-hidden="true" />
+                  <span>{uploadingImages ? 'Enviando...' : 'Adicionar imagens'}</span>
+                </label>
+                <input
+                  id="questao-imagens-upload"
+                  className="visually-hidden"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  disabled={uploadingImages}
+                  onChange={handleImageUpload}
+                />
+              </div>
+            </div>
+
+            {imagens.length ? (
+              <div className="question-images-list">
+                {imagens.map((imagem, index) => (
+                  <article className="question-image-editor" key={imagem.path || imagem.url}>
+                    <div className="question-image-thumb">
+                      <img src={imagem.url} alt={imagem.textoAlternativo || imagem.legenda || imagem.nome || `Imagem ${index + 1} da questão`} />
+                    </div>
+                    <div className="image-metadata-grid">
+                      <Input
+                        label="Legenda"
+                        name={`imagem-legenda-${index}`}
+                        value={imagem.legenda}
+                        onChange={(event) => updateImagem(index, 'legenda', event.target.value)}
+                      />
+                      <Input
+                        label="Texto alternativo"
+                        name={`imagem-alt-${index}`}
+                        value={imagem.textoAlternativo}
+                        onChange={(event) => updateImagem(index, 'textoAlternativo', event.target.value)}
+                      />
+                      <Input
+                        label="Fonte da imagem"
+                        name={`imagem-fonte-${index}`}
+                        value={imagem.fonte}
+                        onChange={(event) => updateImagem(index, 'fonte', event.target.value)}
+                      />
+                    </div>
+                    <button type="button" className="icon-button danger" onClick={() => removeImagem(index)} title="Remover imagem">
+                      <Trash2 size={16} aria-hidden="true" />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="muted-text">Nenhuma imagem associada à questão.</p>
+            )}
+          </div>
 
           {form.tipo === 'multipla_escolha' ? (
             <div className="span-2 alternativas-panel">
@@ -358,7 +563,7 @@ export default function QuestaoForm({
             </div>
           ) : null}
 
-          {(form.tipo === 'imagem' || form.tipo === 'arquivo_anexo') ? (
+          {form.tipo === 'arquivo_anexo' ? (
             <div className="span-2 notice-box">Upload de arquivos será implementado em etapa futura.</div>
           ) : null}
 
@@ -449,13 +654,13 @@ export default function QuestaoForm({
               type="button"
               variant="secondary"
               icon={Plus}
-              disabled={Boolean(savingAction)}
+              disabled={Boolean(savingAction) || uploadingImages}
               onClick={(event) => handleSubmit(event, true)}
             >
               {savingAction === 'another' ? 'Salvando...' : 'Salvar e cadastrar outra'}
             </Button>
           ) : null}
-          <Button type="submit" icon={Save} disabled={Boolean(savingAction)}>
+          <Button type="submit" icon={Save} disabled={Boolean(savingAction) || uploadingImages}>
             {savingAction === 'save' ? 'Salvando...' : 'Salvar'}
           </Button>
         </div>

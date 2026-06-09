@@ -1,12 +1,13 @@
-import { Database, FilePlus2, LayoutDashboard, LibraryBig, ListChecks, ListPlus } from 'lucide-react';
+import { Database, FilePlus2, FileUp, LayoutDashboard, LibraryBig, ListChecks, ListPlus } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/questoes', label: 'Banco de questões', icon: LibraryBig },
-  { to: '/questoes/nova', label: 'Nova questão', icon: FilePlus2 },
   { to: '/listas', label: 'Listas', icon: ListChecks },
-  { to: '/listas/nova', label: 'Criar lista', icon: ListPlus },
+  { to: '/questoes/nova', label: 'Nova questão', icon: FilePlus2 },
+  { to: '/listas/nova', label: 'Nova lista', icon: ListPlus },
+  { to: '/importar-questoes', label: 'Importar questões', icon: FileUp },
   { to: '/backup', label: 'Backup', icon: Database },
 ];
 

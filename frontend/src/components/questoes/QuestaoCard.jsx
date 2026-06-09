@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Badge from '../ui/Badge.jsx';
 import Button from '../ui/Button.jsx';
 import Card from '../ui/Card.jsx';
+import QuestaoImagens from './QuestaoImagens.jsx';
 
 const tipoLabels = {
   multipla_escolha: 'Múltipla escolha',
@@ -20,9 +21,22 @@ const dificuldadeLabels = {
   dificil: 'Difícil',
 };
 
+const statusLabels = {
+  ativa: 'Ativa',
+  em_revisao: 'Em revisão',
+  arquivada: 'Arquivada',
+};
+
+const statusVariants = {
+  ativa: 'success',
+  em_revisao: 'warning',
+  arquivada: 'neutral',
+};
+
 export default function QuestaoCard({ questao, onArquivar }) {
   const tags = questao.tagsNomes || questao.tags || [];
   const pathItems = [questao.disciplina, questao.assunto, questao.subassunto].filter(Boolean);
+  const status = questao.status || 'ativa';
 
   return (
     <Card className="questao-card">
@@ -33,10 +47,12 @@ export default function QuestaoCard({ questao, onArquivar }) {
           </p>
           <h3>{questao.enunciado}</h3>
         </div>
-        <Badge variant={questao.status === 'ativa' ? 'success' : 'warning'}>
-          {questao.status === 'ativa' ? 'Ativa' : 'Arquivada'}
+        <Badge variant={statusVariants[status] || 'neutral'}>
+          {statusLabels[status] || status}
         </Badge>
       </div>
+
+      <QuestaoImagens imagens={questao.imagens} />
 
       <div className="meta-grid">
         <span>{tipoLabels[questao.tipo] || questao.tipo}</span>

@@ -10,6 +10,7 @@ import EditarQuestaoPage from '../pages/EditarQuestaoPage.jsx';
 import ListasPage from '../pages/ListasPage.jsx';
 import EditarListaPage from '../pages/EditarListaPage.jsx';
 import BackupPage from '../pages/BackupPage.jsx';
+import ImportarQuestoesPage from '../pages/ImportarQuestoesPage.jsx';
 import LoginPage from '../pages/LoginPage.jsx';
 
 export default function AppRoutes() {
@@ -22,6 +23,7 @@ export default function AppRoutes() {
         <Route path="/questoes" element={<QuestoesPage />} />
         <Route path="/questoes/nova" element={<NovaQuestaoPage />} />
         <Route path="/questoes/:id/editar" element={<EditarQuestaoPage />} />
+        <Route path="/importar-questoes" element={<ImportarQuestoesPage />} />
         <Route path="/listas" element={<ListasPage />} />
         <Route path="/listas/nova" element={<NovaListaPage />} />
         <Route path="/listas/:id/editar" element={<EditarListaPage />} />

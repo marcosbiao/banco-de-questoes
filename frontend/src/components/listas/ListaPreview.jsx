@@ -1,5 +1,7 @@
 import Badge from '../ui/Badge.jsx';
 import EmptyState from '../ui/EmptyState.jsx';
+import { normalizarImagensQuestao } from '../../utils/questionImages.js';
+import QuestaoImagens from '../questoes/QuestaoImagens.jsx';
 
 function headerLines(cabecalho) {
   if (!cabecalho) return [];
@@ -13,12 +15,12 @@ function headerLines(cabecalho) {
   ].filter(Boolean);
 }
 
-function isCodeType(tipo) {
-  return tipo === 'codigo_analise' || tipo === 'problema_programacao';
+function hasSeparatedCode(questao) {
+  return questao.tipo === 'codigo_analise' && (questao.textoAntesCodigo || questao.codigo);
 }
 
-function needsAnswerSpace(tipo) {
-  return tipo === 'discursiva' || tipo === 'codigo_analise' || tipo === 'problema_programacao';
+function isLegacyCodeAnalysis(questao) {
+  return questao.tipo === 'codigo_analise' && !hasSeparatedCode(questao);
 }
 
 export default function ListaPreview({ lista }) {
@@ -49,23 +51,32 @@ export default function ListaPreview({ lista }) {
             {(bloco.questoes || []).map((questao) => {
               numeroQuestao += 1;
               const hasGabarito = Boolean(questao.respostaCorreta || questao.explicacao || questao.observacaoPedagogica);
+              const imagens = normalizarImagensQuestao(questao.imagens);
 
               return (
                 <article key={questao.id} className="preview-question">
                   <div className="preview-question-top">
                     <strong>{numeroQuestao}.</strong>
-                    {isCodeType(questao.tipo) ? (
+                    {hasSeparatedCode(questao) ? (
+                      <div className="question-code-composed">
+                        {questao.textoAntesCodigo ? <p>{questao.textoAntesCodigo}</p> : null}
+                        {questao.codigo ? <pre className="question-code">{questao.codigo}</pre> : null}
+                      </div>
+                    ) : isLegacyCodeAnalysis(questao) ? (
                       <pre className="question-code">{questao.enunciado}</pre>
                     ) : (
                       <p>{questao.enunciado}</p>
                     )}
                   </div>
 
+                  <QuestaoImagens imagens={imagens} />
+
                   {questao.tipo === 'multipla_escolha' && questao.alternativas?.length ? (
                     <div className="preview-alternativas">
                       {questao.alternativas.map((alternativa, index) => (
                         <p key={alternativa.id || index}>
-                          <strong>{String.fromCharCode(65 + index)}.</strong> {alternativa.texto}
+                          <strong>{String.fromCharCode(65 + index)}.</strong>
+                          <span className="alternative-text">{alternativa.texto}</span>
                           {lista.incluirGabarito && alternativa.correta ? <Badge variant="success">Correta</Badge> : null}
                         </p>
                       ))}
@@ -79,8 +90,12 @@ export default function ListaPreview({ lista }) {
                     </div>
                   ) : null}
 
-                  {(questao.tipo === 'imagem' || questao.tipo === 'arquivo_anexo') ? (
-                    <div className="notice-box">Anexo preparado. Upload real será implementado em etapa futura.</div>
+                  {questao.tipo === 'imagem' && !imagens.length ? (
+                    <div className="notice-box">Questão marcada como imagem, mas sem imagem associada.</div>
+                  ) : null}
+
+                  {questao.tipo === 'arquivo_anexo' ? (
+                    <div className="notice-box">Upload de arquivos será implementado em etapa futura.</div>
                   ) : null}
 
                   {lista.incluirGabarito && questao.tagsNomes?.length ? (
@@ -97,9 +112,6 @@ export default function ListaPreview({ lista }) {
                     </div>
                   ) : null}
 
-                  {!lista.incluirGabarito && needsAnswerSpace(questao.tipo) ? (
-                    <div className="resposta-space" />
-                  ) : null}
                 </article>
               );
             })}

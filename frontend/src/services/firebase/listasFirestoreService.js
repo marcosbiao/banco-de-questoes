@@ -21,26 +21,6 @@ function idsFrom(value) {
   return [];
 }
 
-function hasFilterValue(value) {
-  return Array.isArray(value) ? value.filter(Boolean).length > 0 : Boolean(value?.toString().trim());
-}
-
-function blocoTemFiltro(bloco) {
-  const filtros = bloco.filtros || {};
-
-  return [
-    filtros.disciplinaId,
-    filtros.assuntoIds,
-    filtros.subassuntoIds,
-    filtros.tagIds,
-    filtros.tipo,
-    filtros.dificuldade,
-    filtros.competencia,
-    filtros.nivelBloom,
-    filtros.search,
-  ].some(hasFilterValue);
-}
-
 function normalizarCabecalho(cabecalho) {
   if (!cabecalho || typeof cabecalho !== 'object') {
     return {
@@ -124,6 +104,7 @@ function normalizarBlocoParaSalvar(bloco, index) {
       dificuldade: bloco.filtros?.dificuldade || '',
       competencia: bloco.filtros?.competencia || '',
       nivelBloom: bloco.filtros?.nivelBloom || '',
+      status: bloco.filtros?.status || '',
       search: bloco.filtros?.search || '',
     },
     questoesIds: [...new Set(questoesIds)],
@@ -160,10 +141,6 @@ export async function montarLista(payload) {
   const blocos = [];
 
   for (const [index, bloco] of (payload.blocos || []).slice().sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0)).entries()) {
-    if (!blocoTemFiltro(bloco)) {
-      throw new Error('Selecione pelo menos um filtro para montar este bloco.');
-    }
-
     const filtros = bloco.filtros || {};
     const removidas = idsFrom(bloco.questoesRemovidasIds);
     const questoes = await listarQuestoes({
@@ -171,7 +148,7 @@ export async function montarLista(payload) {
       assuntoIds: idsFrom(filtros.assuntoIds),
       subassuntoIds: idsFrom(filtros.subassuntoIds),
       tagIds: idsFrom(filtros.tagIds),
-      status: 'ativa',
+      status: filtros.status ?? 'ativa',
     });
     const selecionadas = [];
     const duplicadas = [];
@@ -206,6 +183,7 @@ export async function montarLista(payload) {
         dificuldade: filtros.dificuldade || '',
         competencia: filtros.competencia || '',
         nivelBloom: filtros.nivelBloom || '',
+        status: filtros.status || '',
         search: filtros.search || '',
       },
       questoesIds: selecionadas.map((questao) => questao.id),

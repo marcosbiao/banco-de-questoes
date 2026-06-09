@@ -22,6 +22,29 @@ async function waitForRender() {
   await new Promise((resolve) => requestAnimationFrame(resolve));
 }
 
+async function waitForImages(container) {
+  const images = Array.from(container.querySelectorAll('img'));
+
+  if (!images.length) return;
+
+  await Promise.all(images.map((image) => {
+    if (image.complete) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      const timeout = window.setTimeout(resolve, 8000);
+      const finish = () => {
+        window.clearTimeout(timeout);
+        resolve();
+      };
+
+      image.addEventListener('load', finish, { once: true });
+      image.addEventListener('error', finish, { once: true });
+    });
+  }));
+}
+
 function hasRenderedQuestions(lista) {
   return (lista?.blocos || []).some((bloco) => Array.isArray(bloco.questoes) && bloco.questoes.length > 0);
 }
@@ -90,6 +113,8 @@ export async function exportarPdfLista(listaOrId, incluirGabarito = false) {
       root.render(React.createElement(ListaPdfDocument, { lista, incluirGabarito }));
     });
 
+    await waitForRender();
+    await waitForImages(container);
     await waitForRender();
 
     const documentElement = assertConteudoRenderizado(container);

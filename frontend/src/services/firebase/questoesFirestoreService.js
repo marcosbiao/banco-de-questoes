@@ -1,4 +1,5 @@
 import { gerarIdComPrefixo, normalizarTexto } from '../../utils/textNormalizer.js';
+import { normalizarImagensQuestao } from '../../utils/questionImages.js';
 import { listarAssuntos } from './assuntosFirestoreService.js';
 import { listarDisciplinas } from './disciplinasFirestoreService.js';
 import {
@@ -8,6 +9,7 @@ import {
   nowIso,
   salvarDocumento,
 } from './firestoreClient.js';
+import { removerImagemQuestaoStorage } from './questaoImagensStorageService.js';
 import { listarSubassuntos } from './subassuntosFirestoreService.js';
 import { garantirTags } from './tagsFirestoreService.js';
 
@@ -40,6 +42,39 @@ function normalizarAlternativas(alternativas = []) {
       texto: alternativa.texto.trim(),
       correta: Boolean(alternativa.correta),
     }));
+}
+
+function pathsRemovidos(existing = [], next = []) {
+  const nextPaths = new Set(normalizarImagensQuestao(next).map((imagem) => imagem.path).filter(Boolean));
+
+  return normalizarImagensQuestao(existing)
+    .map((imagem) => imagem.path)
+    .filter((path) => path && !nextPaths.has(path));
+}
+
+async function pathEmUsoPorOutraQuestao(path, questaoId) {
+  const questoes = await listarColecao('questoes');
+
+  return questoes.some((questao) => {
+    if (questao.id === questaoId) return false;
+
+    return normalizarImagensQuestao(questao.imagens)
+      .some((imagem) => imagem.path === path);
+  });
+}
+
+async function removerImagensStorageSeSeguro(paths = [], questaoId) {
+  for (const path of [...new Set(paths)]) {
+    try {
+      const emUso = await pathEmUsoPorOutraQuestao(path, questaoId);
+
+      if (!emUso) {
+        await removerImagemQuestaoStorage(path);
+      }
+    } catch (error) {
+      console.warn('Não foi possível remover imagem do Storage:', error);
+    }
+  }
 }
 
 function optionalId(data, existing, field) {
@@ -94,14 +129,21 @@ function filtrarQuestao(questao, filtros = {}) {
   }
 
   const tagIds = valuesFromFilter(filtros.tagIds);
-  if (!tagIds.every((tagId) => (questao.tagsIds || []).includes(tagId))) {
+  const tagNomesNormalizados = (questao.tagsNomes || questao.tags || []).map((tag) => normalizarTexto(tag));
+  if (!tagIds.every((tagId) => (questao.tagsIds || []).includes(tagId) || tagNomesNormalizados.includes(normalizarTexto(tagId)))) {
     return false;
   }
 
   const search = filtros.search || filtros.busca || '';
   if (search) {
     const busca = normalizarTexto(search);
-    const texto = normalizarTexto(`${questao.enunciado || ''} ${(questao.tagsNomes || []).join(' ')}`);
+    const texto = normalizarTexto([
+      questao.enunciado,
+      questao.assunto,
+      questao.subassunto,
+      questao.competencia,
+      ...(questao.tagsNomes || questao.tags || []),
+    ].filter(Boolean).join(' '));
 
     if (!texto.includes(busca)) {
       return false;
@@ -133,6 +175,8 @@ async function normalizarPayload(data, existing = {}) {
     assuntoId: data.assuntoId ?? existing.assuntoId ?? '',
     subassuntoId: optionalId(data, existing, 'subassuntoId'),
     tipo,
+    textoAntesCodigo: (data.textoAntesCodigo ?? existing.textoAntesCodigo ?? '').toString().trim(),
+    codigo: (data.codigo ?? existing.codigo ?? '').toString().trim(),
     enunciado: (data.enunciado ?? existing.enunciado ?? '').toString().trim(),
     alternativas,
     respostaCorreta,
@@ -145,6 +189,7 @@ async function normalizarPayload(data, existing = {}) {
     tagsNomes: tags.nomes,
     observacaoPedagogica: (data.observacaoPedagogica ?? existing.observacaoPedagogica ?? '').toString().trim(),
     status: data.status ?? existing.status ?? 'ativa',
+    imagens: normalizarImagensQuestao(data.imagens ?? existing.imagens ?? []),
     anexos: Array.isArray(data.anexos ?? existing.anexos) ? (data.anexos ?? existing.anexos) : [],
   };
 }
@@ -181,11 +226,14 @@ export async function atualizarQuestao(id, questao) {
   }
 
   const payload = await normalizarPayload(questao, existing);
+  const imagensRemovidasPaths = pathsRemovidos(existing.imagens, payload.imagens);
 
   await atualizarDocumento('questoes', id, {
     ...payload,
     updatedAt: nowIso(),
   });
+
+  await removerImagensStorageSeSeguro(imagensRemovidasPaths, id);
 
   return buscarQuestao(id);
 }

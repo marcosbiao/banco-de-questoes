@@ -21,6 +21,7 @@ export const dificuldadeOptions = [
 
 export const statusOptions = [
   { value: 'ativa', label: 'Ativa' },
+  { value: 'em_revisao', label: 'Em revisão' },
   { value: 'arquivada', label: 'Arquivada' },
 ];
 

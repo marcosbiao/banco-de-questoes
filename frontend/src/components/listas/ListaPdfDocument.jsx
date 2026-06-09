@@ -1,15 +1,18 @@
+import QuestaoImagens from '../questoes/QuestaoImagens.jsx';
+import { normalizarImagensQuestao } from '../../utils/questionImages.js';
+
 function text(value) {
   if (value === undefined || value === null) return '';
   if (Array.isArray(value)) return value.filter(Boolean).join(', ');
   return String(value);
 }
 
-function isCodeType(tipo) {
-  return tipo === 'codigo_analise' || tipo === 'problema_programacao';
+function hasSeparatedCode(questao) {
+  return questao.tipo === 'codigo_analise' && (questao.textoAntesCodigo || questao.codigo);
 }
 
-function needsAnswerSpace(tipo) {
-  return tipo === 'discursiva' || tipo === 'codigo_analise' || tipo === 'problema_programacao';
+function isLegacyCodeAnalysis(questao) {
+  return questao.tipo === 'codigo_analise' && !hasSeparatedCode(questao);
 }
 
 function headerFields(cabecalho = {}) {
@@ -42,9 +45,11 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
         {`
           .lista-pdf-document {
             width: 794px;
+            max-width: 100%;
             min-height: 1123px;
             padding: 32px;
             box-sizing: border-box;
+            overflow-x: hidden;
             background: #ffffff;
             color: #111827;
             font-family: Arial, Helvetica, sans-serif;
@@ -57,6 +62,8 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
           }
 
           .pdf-header {
+            max-width: 100%;
+            overflow-x: hidden;
             padding-bottom: 14px;
             border-bottom: 1px solid #b7c2bd;
             margin-bottom: 18px;
@@ -65,6 +72,8 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
           .pdf-header-grid {
             display: table;
             width: 100%;
+            max-width: 100%;
+            table-layout: fixed;
             margin-bottom: 14px;
             border-collapse: collapse;
           }
@@ -78,6 +87,8 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
             display: table-cell;
             padding: 2px 10px 2px 0;
             vertical-align: top;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
 
           .pdf-header-label {
@@ -89,16 +100,20 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
           }
 
           .pdf-title {
+            max-width: 100%;
             margin: 0;
             text-align: center;
             color: #111827;
             font-size: 22px;
             line-height: 1.25;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
 
           .pdf-version {
             display: block;
             width: max-content;
+            max-width: 100%;
             margin: 8px auto 0;
             padding: 3px 8px;
             border: 1px solid #9ca3af;
@@ -110,11 +125,15 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
           }
 
           .pdf-instructions {
+            max-width: 100%;
             margin-bottom: 18px;
             padding: 10px;
             border: 1px solid #d9e0dc;
             background: #f6f8f7;
             white-space: pre-wrap;
+            overflow-x: hidden;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
 
           .pdf-section-title {
@@ -126,23 +145,32 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
           }
 
           .pdf-block {
+            max-width: 100%;
+            min-width: 0;
             margin-bottom: 18px;
+            overflow-x: hidden;
             page-break-inside: avoid;
           }
 
           .pdf-block-title {
+            max-width: 100%;
             margin: 0 0 10px;
             padding: 7px 9px;
             border-left: 4px solid #0f766e;
             background: #eef3f1;
             color: #143d39;
             font-size: 15px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
 
           .pdf-question {
+            max-width: 100%;
+            min-width: 0;
             margin-bottom: 12px;
             padding: 10px;
             border: 1px solid #d9e0dc;
+            overflow-x: hidden;
             page-break-inside: avoid;
           }
 
@@ -153,11 +181,15 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
           }
 
           .pdf-enunciado {
+            max-width: 100%;
             margin: 0;
             white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
 
           .pdf-code {
+            max-width: 100%;
             margin: 6px 0 0;
             padding: 8px;
             border: 1px solid #d1d5db;
@@ -167,14 +199,55 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
             font-size: 12px;
             line-height: 1.45;
             white-space: pre-wrap;
+            overflow-x: hidden;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+          }
+
+          .question-images {
+            max-width: 100%;
+            margin: 8px 0;
+            overflow-x: hidden;
+          }
+
+          .question-image-wrapper {
+            width: 100%;
+            max-width: 100%;
+            margin: 9px 0;
+            text-align: center;
+            box-sizing: border-box;
+            page-break-inside: avoid;
+          }
+
+          .question-image-wrapper img {
+            max-width: 100%;
+            height: auto;
+            object-fit: contain;
+            display: inline-block;
+            page-break-inside: avoid;
+          }
+
+          .question-image-caption {
+            max-width: 100%;
+            margin: 5px 0 0;
+            color: #4b5563;
+            font-size: 11px;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
 
           .pdf-alternatives {
+            max-width: 100%;
             margin-top: 8px;
+            overflow-x: hidden;
           }
 
           .pdf-alternative {
+            max-width: 100%;
             margin: 0 0 4px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
 
           .pdf-correct {
@@ -182,39 +255,86 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
             font-weight: 700;
           }
 
-          .pdf-answer-space {
-            margin-top: 10px;
-          }
-
-          .pdf-answer-line {
-            height: 19px;
-            border-bottom: 1px solid #c5d0cb;
-          }
-
           .pdf-gabarito {
+            max-width: 100%;
             margin-top: 9px;
             padding: 8px;
             border: 1px solid #b8ddd3;
             background: #f3fbf8;
             color: #164e45;
+            overflow-x: hidden;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
 
           .pdf-gabarito p {
+            max-width: 100%;
             margin: 0 0 5px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
 
           .pdf-tags {
+            max-width: 100%;
             margin-top: 6px;
             color: #365f59;
             font-size: 11px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
           }
 
           .pdf-attachment {
+            max-width: 100%;
             margin-top: 8px;
             padding: 6px 8px;
             border: 1px solid #ead28b;
             background: #fff8e6;
             color: #725100;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+          }
+
+          @media print {
+            .lista-pdf-document,
+            .pdf-header,
+            .pdf-instructions,
+            .pdf-block,
+            .pdf-question,
+            .pdf-alternatives,
+            .pdf-gabarito,
+            .pdf-attachment {
+              max-width: 100%;
+              overflow-x: hidden;
+              box-sizing: border-box;
+            }
+
+            .pdf-title,
+            .pdf-header-value,
+            .pdf-instructions,
+            .pdf-block-title,
+            .pdf-enunciado,
+            .pdf-code,
+            .pdf-alternative,
+            .pdf-gabarito,
+            .pdf-gabarito p,
+            .pdf-tags,
+            .pdf-attachment {
+              max-width: 100%;
+              overflow-wrap: anywhere;
+              word-break: break-word;
+            }
+
+            .question-image-wrapper,
+            .question-image-wrapper img {
+              max-width: 100%;
+              height: auto;
+              page-break-inside: avoid;
+            }
+
+            .pdf-code {
+              white-space: pre-wrap;
+              overflow-x: hidden;
+            }
           }
         `}
       </style>
@@ -251,17 +371,29 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
             numeroQuestao += 1;
             const alternativas = Array.isArray(questao.alternativas) ? questao.alternativas : [];
             const tags = Array.isArray(questao.tagsNomes) ? questao.tagsNomes.filter(Boolean) : [];
+            const imagens = normalizarImagensQuestao(questao.imagens);
             const hasGabarito = Boolean(questao.respostaCorreta || questao.explicacao || questao.observacaoPedagogica);
 
             return (
               <article className="pdf-question" key={questao.id || questaoIndex}>
                 <p className="pdf-question-title">Questão {numeroQuestao}</p>
 
-                {isCodeType(questao.tipo) ? (
+                {hasSeparatedCode(questao) ? (
+                  <>
+                    {text(questao.textoAntesCodigo).trim() ? (
+                      <p className="pdf-enunciado">{text(questao.textoAntesCodigo)}</p>
+                    ) : null}
+                    {text(questao.codigo).trim() ? (
+                      <pre className="pdf-code">{text(questao.codigo)}</pre>
+                    ) : null}
+                  </>
+                ) : isLegacyCodeAnalysis(questao) ? (
                   <pre className="pdf-code">{text(questao.enunciado)}</pre>
                 ) : (
                   <p className="pdf-enunciado">{text(questao.enunciado)}</p>
                 )}
+
+                <QuestaoImagens imagens={imagens} />
 
                 {questao.tipo === 'multipla_escolha' && alternativas.length ? (
                   <div className="pdf-alternatives">
@@ -281,18 +413,13 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
                   </div>
                 ) : null}
 
-                {(questao.tipo === 'imagem' || questao.tipo === 'arquivo_anexo') ? (
-                  <div className="pdf-attachment">
-                    {questao.tipo === 'imagem' ? '[Imagem/anexo associado à questão]' : '[Arquivo/anexo associado à questão]'}
-                  </div>
+                {questao.tipo === 'imagem' && !imagens.length ? (
+                  <div className="pdf-attachment">[Questão marcada como imagem, mas sem imagem associada]</div>
                 ) : null}
 
-                {!incluirGabarito && needsAnswerSpace(questao.tipo) ? (
-                  <div className="pdf-answer-space">
-                    <div className="pdf-answer-line" />
-                    <div className="pdf-answer-line" />
-                    <div className="pdf-answer-line" />
-                    <div className="pdf-answer-line" />
+                {questao.tipo === 'arquivo_anexo' ? (
+                  <div className="pdf-attachment">
+                    [Arquivo/anexo associado à questão]
                   </div>
                 ) : null}
 

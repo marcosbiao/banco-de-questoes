@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   listarAssuntos,
   listarDisciplinas,
+  listarQuestoes,
   listarSubassuntos,
   listarTags,
 } from '../../services/questoesService.js';
@@ -46,6 +47,7 @@ function novoBloco(ordem = 1) {
       dificuldade: '',
       competencia: '',
       nivelBloom: '',
+      status: 'ativa',
       search: '',
     },
     questoesIds: [],
@@ -85,28 +87,51 @@ function normalizeInitialData(initialData) {
   };
 }
 
-function hasFilterValue(value) {
-  if (Array.isArray(value)) {
-    return value.filter(Boolean).length > 0;
+function addUniqueOption(items, item) {
+  if (!item?.value || items.some((option) => option.value === item.value)) {
+    return items;
   }
 
-  return Boolean(value?.toString().trim());
+  return [...items, item];
 }
 
-function blocoTemFiltro(bloco) {
-  const filtros = bloco.filtros || {};
+function opcoesFromQuestoes(questoes = []) {
+  return questoes.reduce((acc, questao) => {
+    acc.disciplinas = addUniqueOption(acc.disciplinas, { value: questao.disciplinaId, label: questao.disciplina });
+    acc.assuntos = addUniqueOption(acc.assuntos, { value: questao.assuntoId, label: questao.assunto, disciplinaId: questao.disciplinaId });
 
-  return [
-    filtros.disciplinaId,
-    filtros.assuntoIds,
-    filtros.subassuntoIds,
-    filtros.tagIds,
-    filtros.tipo,
-    filtros.dificuldade,
-    filtros.competencia,
-    filtros.nivelBloom,
-    filtros.search,
-  ].some(hasFilterValue);
+    if (questao.subassuntoId) {
+      acc.subassuntos = addUniqueOption(acc.subassuntos, {
+        value: questao.subassuntoId,
+        label: questao.subassunto,
+        disciplinaId: questao.disciplinaId,
+        assuntoId: questao.assuntoId,
+      });
+    }
+
+    (questao.tagsNomes || questao.tags || []).forEach((tag, index) => {
+      acc.tags = addUniqueOption(acc.tags, {
+        value: questao.tagsIds?.[index] || tag,
+        label: tag,
+      });
+    });
+
+    if (questao.competencia) {
+      acc.competencias = addUniqueOption(acc.competencias, {
+        value: questao.competencia,
+        label: questao.competencia,
+      });
+    }
+
+    if (questao.status) {
+      acc.statuses = addUniqueOption(acc.statuses, {
+        value: questao.status,
+        label: questao.status,
+      });
+    }
+
+    return acc;
+  }, { disciplinas: [], assuntos: [], subassuntos: [], tags: [], competencias: [], statuses: [] });
 }
 
 function draftFromState(form, listaMontada) {
@@ -121,7 +146,8 @@ export default function ListaForm({ initialData, initialDraft, mode = 'create', 
   const hasMountedDraftSave = useRef(false);
   const [form, setForm] = useState(() => normalizeInitialData(initialDraft?.form || initialData));
   const [listaMontada, setListaMontada] = useState(initialDraft?.listaMontada || initialData || null);
-  const [opcoes, setOpcoes] = useState({ disciplinas: [], assuntos: [], subassuntos: [], tags: [] });
+  const [opcoes, setOpcoes] = useState({ disciplinas: [], assuntos: [], subassuntos: [], tags: [], competencias: [], statuses: [] });
+  const [questoesDisponiveis, setQuestoesDisponiveis] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -148,14 +174,29 @@ export default function ListaForm({ initialData, initialDraft, mode = 'create', 
 
   useEffect(() => {
     async function loadOptions() {
-      const [disciplinas, assuntos, subassuntos, tags] = await Promise.all([
+      const [disciplinas, assuntos, subassuntos, tags, questoes] = await Promise.all([
         listarDisciplinas(),
         listarAssuntos(),
         listarSubassuntos(),
         listarTags(),
+        listarQuestoes({}),
       ]);
+      const opcoesQuestoes = opcoesFromQuestoes(questoes);
 
-      setOpcoes({ disciplinas, assuntos, subassuntos, tags });
+      setQuestoesDisponiveis(questoes);
+      setOpcoes({
+        disciplinas: opcoesQuestoes.disciplinas.length ? opcoesQuestoes.disciplinas : disciplinas.map((disciplina) => ({ value: disciplina.id, label: disciplina.nome })),
+        assuntos: opcoesQuestoes.assuntos.length ? opcoesQuestoes.assuntos : assuntos.map((assunto) => ({ value: assunto.id, label: assunto.nome, disciplinaId: assunto.disciplinaId })),
+        subassuntos: opcoesQuestoes.subassuntos.length ? opcoesQuestoes.subassuntos : subassuntos.map((subassunto) => ({
+          value: subassunto.id,
+          label: subassunto.nome,
+          disciplinaId: subassunto.disciplinaId,
+          assuntoId: subassunto.assuntoId,
+        })),
+        tags: opcoesQuestoes.tags.length ? opcoesQuestoes.tags : tags.map((tag) => ({ value: tag.id, label: tag.nome })),
+        competencias: opcoesQuestoes.competencias,
+        statuses: opcoesQuestoes.statuses,
+      });
     }
 
     loadOptions().catch((apiError) => setError(apiError.message));
@@ -267,13 +308,6 @@ export default function ListaForm({ initialData, initialDraft, mode = 'create', 
   function validarBlocos() {
     if (!form.titulo.trim()) {
       setError('Informe o título da lista.');
-      return false;
-    }
-
-    const blocoVazio = form.blocos.find((bloco) => !blocoTemFiltro(bloco));
-
-    if (blocoVazio) {
-      setError('Selecione pelo menos um filtro para montar este bloco.');
       return false;
     }
 
@@ -446,6 +480,7 @@ export default function ListaForm({ initialData, initialDraft, mode = 'create', 
               index={index}
               total={form.blocos.length}
               opcoes={opcoes}
+              questoesDisponiveis={questoesDisponiveis}
               onChange={updateBloco}
               onMove={moveBloco}
               onRemove={requestRemoveBloco}
