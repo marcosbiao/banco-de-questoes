@@ -31,6 +31,10 @@ service cloud.firestore {
       allow read, write: if isOwner();
     }
 
+    match /rubricas/{document=**} {
+      allow read, write: if isOwner();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

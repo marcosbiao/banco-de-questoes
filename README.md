@@ -1,48 +1,146 @@
-# Banco de Questões e Gerador de Listas
+# Banco de Questões e Criador de Listas
 
-Sistema web para cadastro de questões, montagem de listas de exercícios e exportação de PDF.
+Sistema web para cadastro, organização e análise pedagógica de questões, com criação de listas de exercícios e exportação em PDF.
 
-## Nova Arquitetura
+O projeto foi pensado para apoiar professores na manutenção de um banco de questões estruturado, com filtros pedagógicos, rubricas, competências, níveis de dificuldade e geração de listas personalizadas.
 
-O uso em produção não depende mais do Laravel:
+## Principais Funcionalidades
 
-- Frontend React hospedável no GitHub Pages.
-- Firebase Auth com login Google.
-- Firestore como banco de dados.
-- Apenas um usuário autorizado deve acessar o sistema.
-- PDF gerado diretamente no frontend com `html2pdf.js`.
-- Backend Laravel mantido no repositório apenas como legado/referência.
+- Cadastro, edição, arquivamento e exclusão de questões.
+- Organização por disciplinas, assuntos, subassuntos e tags.
+- Classificação por dificuldade, competência CCI e nível de Bloom.
+- Rubricas de correção vinculadas às questões.
+- Criação e edição de listas de exercícios.
+- Exportação de listas em PDF com ou sem gabarito.
+- Dashboard pedagógico com indicadores e matriz de cobertura.
+- Autenticação com Google via Firebase Auth.
 
-## Estrutura
+## Banco de Questões
 
-- `frontend/`: aplicação React, services Firestore, autenticação e PDF local.
-- `backend/`: API Laravel legada, útil apenas como referência ou apoio local antigo.
-- `scripts/import-mock-firestore-to-firebase.mjs`: importador opcional do mock local para Firestore.
-- `firestore.rules.example`: exemplo de regras restritas a um único usuário.
-- `MIGRACAO_DADOS.md`: guia curto de migração dos dados do mock.
+O banco de questões permite cadastrar e gerenciar questões com os principais metadados pedagógicos:
 
-## Requisitos
+- disciplina;
+- assunto;
+- subassunto;
+- tipo de questão;
+- dificuldade numérica de 1 a 5;
+- competência CCI;
+- nível de Bloom;
+- tags;
+- status;
+- imagens;
+- resposta correta;
+- explicação;
+- observação pedagógica.
 
-- Node.js 18 ou superior
-- npm
-- Projeto Firebase com Firestore e Firebase Auth
-- Provedor Google ativado no Firebase Auth
+A tela de questões possui filtros por texto, disciplina, assunto, subassunto, tipo, dificuldade, competência, status, tags e presença de rubrica.
 
-Para usar o importador local, também é necessária uma service account do Firebase Admin SDK. Não use service account no frontend.
+Também é possível exportar apenas as questões filtradas em JSON, com ou sem rubricas.
 
-## Configurar Firebase
+## Rubricas
 
-1. Crie um projeto no Firebase.
-2. Ative Firestore.
-3. Ative Firebase Auth com provedor Google.
-4. Em `frontend`, copie o exemplo de ambiente:
+As rubricas são vinculadas diretamente às questões e podem ser criadas, visualizadas, editadas ou removidas a partir do próprio card da questão.
+
+Cada rubrica possui:
+
+- pontuação total;
+- critérios de avaliação;
+- pontuação por critério;
+- resposta modelo;
+- observações de correção;
+- status de revisão.
+
+As rubricas ajudam a padronizar a correção de questões discursivas, problemas de programação e análises de código.
+
+## Criação de Listas
+
+O sistema permite criar listas de exercícios a partir do banco de questões.
+
+As listas podem ser montadas com blocos configuráveis por filtros, como disciplina, assunto, subassunto, dificuldade, tipo, competência, nível de Bloom, status e tags.
+
+Durante a montagem, o sistema evita duplicações entre blocos e permite revisar a seleção antes de salvar.
+
+Também é possível editar listas salvas, arquivar listas e excluir listas definitivamente.
+
+## Exportação de Listas em PDF
+
+As listas podem ser exportadas em PDF diretamente pelo navegador.
+
+Existem duas opções:
+
+- PDF sem gabarito;
+- PDF com gabarito.
+
+A versão com gabarito inclui respostas, explicações e informações pedagógicas disponíveis. A versão sem gabarito omite esses dados para uso com estudantes.
+
+## Dashboard Pedagógico
+
+O dashboard apresenta uma visão analítica do banco de questões.
+
+Ele inclui:
+
+- total de questões;
+- questões ativas;
+- questões arquivadas;
+- questões em revisão;
+- questões com rubrica;
+- questões sem rubrica;
+- distribuição por dificuldade;
+- distribuição por competência CCI;
+- distribuição por nível de Bloom;
+- distribuição por tipo;
+- distribuição por assunto;
+- matriz de cobertura por competência e dificuldade;
+- alertas pedagógicos sobre lacunas no acervo.
+
+Essa visão ajuda a identificar desequilíbrios no banco e orientar a criação de novas questões.
+
+## Como Usar o Sistema
+
+1. Acesse o sistema e faça login com Google.
+2. Cadastre disciplinas, assuntos, subassuntos e tags conforme necessário.
+3. Cadastre questões manualmente ou importe questões por JSON.
+4. Revise as informações pedagógicas das questões.
+5. Crie ou edite rubricas quando necessário.
+6. Use os filtros para localizar questões.
+7. Monte listas de exercícios a partir dos filtros desejados.
+8. Revise a prévia da lista.
+9. Salve a lista ou exporte em PDF.
+10. Acompanhe a cobertura pedagógica pelo dashboard.
+11. Faça backups periódicos dos dados.
+
+## Como Executar Localmente
+
+Requisitos:
+
+- Node.js 18 ou superior;
+- npm;
+- projeto Firebase configurado.
+
+Passos:
 
 ```bash
 cd frontend
-cp .env.example .env
+npm install
+npm run dev
 ```
 
-5. Preencha:
+Depois, abra o endereço informado pelo Vite, normalmente:
+
+```txt
+http://localhost:5173/
+```
+
+Para gerar uma versão de produção:
+
+```bash
+cd frontend
+npm run build
+```
+
+## Configuração do Firebase
+
+Crie um arquivo `frontend/.env` com as credenciais do projeto Firebase:
 
 ```env
 VITE_FIREBASE_API_KEY=
@@ -51,178 +149,27 @@ VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
-VITE_ALLOWED_EMAIL=seu-email@example.com
+VITE_FIREBASE_MEASUREMENT_ID=
+VITE_ALLOWED_EMAIL=
 VITE_BASE_PATH=/
 ```
 
-`VITE_ALLOWED_EMAIL` é apenas controle visual no frontend. A proteção real deve ser feita nas regras do Firestore.
+No Firebase Console, habilite:
 
-## Regras do Firestore
+- Firebase Auth com provedor Google;
+- Firestore Database;
+- Firebase Storage.
 
-Use `firestore.rules.example` como base. A regra recomendada é por UID:
+O controle visual de acesso pode usar `VITE_ALLOWED_EMAIL`, mas a proteção real dos dados deve ser feita pelas regras do Firestore.
 
-```js
-function isOwner() {
-  return request.auth != null
-    && request.auth.uid == "COLOQUE_AQUI_SEU_UID";
-}
-```
+## Tecnologias Utilizadas
 
-Para descobrir o UID, faça login no sistema com sua conta Google autorizada, abra o Firebase Console em `Authentication`, selecione o usuário e copie o UID exibido.
-
-Substitua `COLOQUE_AQUI_SEU_UID` no arquivo `firestore.rules.example` e publique as regras no console do Firestore.
-
-Há uma alternativa por e-mail comentada no arquivo, mas UID é preferível.
-
-Para detalhes completos, veja também `SEGURANCA_FIRESTORE.md`.
-
-## Rodar Localmente Sem Laravel
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Abra `http://localhost:5173`, faça login com Google e use a conta definida em `VITE_ALLOWED_EMAIL`.
-
-### Backup e restauração
-
-A aplicação agora inclui uma página de backup em `/backup` que permite:
-
-- exportar todas as coleções principais em JSON;
-- importar backups em modo `Mesclar com dados existentes` ou `Substituir banco atual pelo backup`;
-- preservar IDs de documentos ao restaurar.
-
-Sempre exporte um backup antes de usar o modo `Substituir banco atual pelo backup`.
-
-Fluxo esperado:
-
-1. Entrar com Google.
-2. Cadastrar disciplina.
-3. Cadastrar assunto.
-4. Cadastrar subassunto.
-5. Cadastrar questão.
-6. Montar lista.
-7. Salvar lista.
-8. Abrir prévia.
-9. Exportar PDF sem gabarito.
-10. Exportar PDF com gabarito.
-
-## GitHub Pages
-
-O app usa `HashRouter`, então refresh de página funciona em GitHub Pages.
-
-Para Project Pages, configure no `.env`:
-
-```env
-VITE_BASE_PATH=/nome-do-repositorio/
-```
-
-Build local:
-
-```bash
-cd frontend
-npm run build
-npm run preview
-```
-
-Deploy:
-
-```bash
-cd frontend
-npm run deploy
-```
-
-O script usa `gh-pages -d dist`.
-
-## PDF Sem Backend
-
-Na prévia da lista existem dois botões:
-
-- `Exportar PDF sem gabarito`
-- `Exportar PDF com gabarito`
-
-A geração usa `html2pdf.js` no navegador. A versão sem gabarito oculta resposta correta, explicação, observação pedagógica, marcação de alternativa correta e tags. A versão com gabarito mostra esses dados quando preenchidos.
-
-## Importar Dados do Mock Local
-
-Se você usava `FIREBASE_ENABLED=false`, os dados podem estar em:
-
-```text
-backend/storage/app/mock-firestore.json
-```
-
-Na raiz do projeto:
-
-```bash
-npm install
-export GOOGLE_APPLICATION_CREDENTIALS="/caminho/seguro/service-account.json"
-export FIREBASE_PROJECT_ID="seu-project-id"
-npm run import:mock
-```
-
-O script preserva IDs originais e pula documentos já existentes. Veja [MIGRACAO_DADOS.md](</home/biao/All/VsCode/banco de questoes/MIGRACAO_DADOS.md>).
-
-## Coleções Firestore
-
-- `disciplinas`
-- `assuntos`
-- `subassuntos`
-- `tags`
-- `questoes`
-- `listas`
-
-Os services do frontend mantêm os nomes públicos antigos, mas agora acessam Firestore diretamente.
-
-## Funcionalidades
-
-- Firebase Auth com Google.
-- Bloqueio visual por `VITE_ALLOWED_EMAIL`.
-- CRUD de disciplinas, assuntos, subassuntos, tags e questões.
-- Listagem, filtros, edição e arquivamento de questões.
-- Tags com normalização e prevenção de duplicidade.
-- Montagem semiautomática de listas por filtros opcionais.
-- Remoção de duplicatas entre blocos.
-- Remoção, restauração e reordenação de questões na lista.
-- Salvamento e edição de listas no Firestore.
-- Prévia com e sem gabarito.
-- Exportação PDF sem backend.
-
-## Testes Recomendados
-
-1. Rodar apenas o frontend.
-2. Acessar a tela de login.
-3. Entrar com Google.
-4. Testar usuário não autorizado.
-5. Testar usuário autorizado.
-6. Criar disciplina, assunto e subassunto.
-7. Criar tag repetida com acento e sem acento.
-8. Criar, editar e arquivar questão.
-9. Filtrar questões por disciplina, assunto, subassunto, tag e status.
-10. Criar lista apenas por disciplina.
-11. Criar lista apenas por tag.
-12. Criar lista com dois blocos e verificar duplicatas ignoradas.
-13. Remover e reordenar questões.
-14. Salvar lista no Firestore.
-15. Abrir prévia salva.
-16. Exportar PDF sem gabarito.
-17. Exportar PDF com gabarito.
-18. Rodar `npm run build`.
-19. Rodar `npm run preview`.
-20. Publicar com `npm run deploy`.
-
-## Backend Legado
-
-O backend Laravel permanece no repositório, mas não é necessário para produção. Ele pode ser usado como referência da arquitetura anterior ou para consultar regras de negócio já migradas para JavaScript.
-
-## Limitações Atuais
-
-- Sem cadastro público.
-- Sem login por senha.
-- Sem área de aluno.
-- Sem upload real de imagens e arquivos.
-- Sem importação em massa pela interface.
-- Sem histórico de desempenho.
-- Sem Cloud Functions.
-- Sem banco relacional.
+- React;
+- Vite;
+- JavaScript;
+- Firebase Auth;
+- Firestore;
+- Firebase Storage;
+- React Router;
+- html2pdf.js;
+- Lucide React.
