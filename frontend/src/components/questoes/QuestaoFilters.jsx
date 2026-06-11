@@ -1,4 +1,6 @@
 import { RotateCcw, Search } from 'lucide-react';
+import { obterCompetenciasPorDisciplina } from '../../constants/competencias.js';
+import { DIFICULDADES, normalizarDificuldade } from '../../constants/dificuldades.js';
 import Button from '../ui/Button.jsx';
 import Input from '../ui/Input.jsx';
 import Select from '../ui/Select.jsx';
@@ -13,11 +15,7 @@ export const tipoOptions = [
   { value: 'arquivo_anexo', label: 'Questão com arquivo anexado' },
 ];
 
-export const dificuldadeOptions = [
-  { value: 'facil', label: 'Fácil' },
-  { value: 'medio', label: 'Médio' },
-  { value: 'dificil', label: 'Difícil' },
-];
+export const dificuldadeOptions = DIFICULDADES.map(({ value, label }) => ({ value, label }));
 
 export const statusOptions = [
   { value: 'ativa', label: 'Ativa' },
@@ -25,16 +23,24 @@ export const statusOptions = [
   { value: 'arquivada', label: 'Arquivada' },
 ];
 
+const rubricaOptions = [
+  { value: 'todas', label: 'Todas' },
+  { value: 'com', label: 'Com rubrica' },
+  { value: 'sem', label: 'Sem rubrica' },
+];
+
 export default function QuestaoFilters({ filtros, onChange, onApply, onClear, opcoes }) {
   const update = (field, value) => {
     onChange({
       ...filtros,
       [field]: value,
-      ...(field === 'disciplinaId' ? { assuntoId: '', subassuntoId: '' } : {}),
+      ...(field === 'disciplinaId' ? { assuntoId: '', subassuntoId: '', competencia: '' } : {}),
       ...(field === 'assuntoId' ? { subassuntoId: '' } : {}),
     });
   };
 
+  const disciplinaSelecionada = opcoes.disciplinas.find((disciplina) => disciplina.id === filtros.disciplinaId);
+  const competenciaOptions = obterCompetenciasPorDisciplina(disciplinaSelecionada?.nome);
   const assuntoOptions = opcoes.assuntos
     .filter((assunto) => !filtros.disciplinaId || assunto.disciplinaId === filtros.disciplinaId)
     .map((assunto) => ({ value: assunto.id, label: assunto.nome }));
@@ -85,7 +91,16 @@ export default function QuestaoFilters({ filtros, onChange, onApply, onClear, op
         name="dificuldade"
         value={filtros.dificuldade}
         options={dificuldadeOptions}
-        onChange={(event) => update('dificuldade', event.target.value)}
+        onChange={(event) => update('dificuldade', normalizarDificuldade(event.target.value))}
+      />
+      <Select
+        label="Competência"
+        name="competencia"
+        value={filtros.competencia}
+        options={competenciaOptions}
+        placeholder={competenciaOptions.length ? 'Todas as competências' : 'Selecione uma disciplina'}
+        disabled={!competenciaOptions.length}
+        onChange={(event) => update('competencia', event.target.value)}
       />
       <Select
         label="Status"
@@ -93,6 +108,14 @@ export default function QuestaoFilters({ filtros, onChange, onApply, onClear, op
         value={filtros.status}
         options={statusOptions}
         onChange={(event) => update('status', event.target.value)}
+      />
+      <Select
+        label="Rubrica"
+        name="rubrica"
+        value={filtros.rubrica || 'todas'}
+        options={rubricaOptions}
+        placeholder="Todas"
+        onChange={(event) => update('rubrica', event.target.value || 'todas')}
       />
       <label className="field" htmlFor="tagIds">
         <span>Tags</span>

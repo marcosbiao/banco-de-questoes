@@ -116,6 +116,13 @@ export default function ListaPreviewPage() {
       {message ? <p className="success-message">{message}</p> : null}
       {loading ? <LoadingState message="Carregando prévia..." /> : null}
       <ErrorMessage message={error} />
+      {!loading && error && !isTemporaryPreview ? (
+        <div className="card-actions">
+          <Button type="button" variant="secondary" onClick={() => navigate('/listas')}>
+            Voltar para listas
+          </Button>
+        </div>
+      ) : null}
       {!loading && !error && lista ? <ListaPreview lista={lista} /> : null}
       {!loading && !error && !lista ? (
         <EmptyState

@@ -2,7 +2,7 @@ import { collection, deleteDoc, doc, getDocs, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase/firebase.js';
 import { listarColecao, requireDb, salvarDocumento } from './firestoreClient.js';
 
-const BACKUP_COLLECTIONS = ['disciplinas', 'assuntos', 'subassuntos', 'tags', 'questoes', 'listas'];
+const BACKUP_COLLECTIONS = ['disciplinas', 'assuntos', 'subassuntos', 'tags', 'questoes', 'listas', 'rubricas'];
 const BACKUP_VERSION = 1;
 
 export async function exportarBackupCompleto() {

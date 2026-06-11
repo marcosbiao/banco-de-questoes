@@ -5,12 +5,14 @@ import { criarQuestao } from '../services/questoesService.js';
 export default function NovaQuestaoPage() {
   const navigate = useNavigate();
 
-  async function handleSubmit(payload, { cadastrarOutra }) {
-    await criarQuestao(payload);
+  async function handleSubmit(payload, { cadastrarOutra } = {}) {
+    const questao = await criarQuestao(payload);
 
     if (!cadastrarOutra) {
       navigate('/questoes');
     }
+
+    return questao;
   }
 
   return (

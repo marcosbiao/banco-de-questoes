@@ -1,5 +1,6 @@
 import { ImagePlus, Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { normalizarDificuldade } from '../../constants/dificuldades.js';
 import {
   criarAssunto,
   criarDisciplina,
@@ -48,6 +49,12 @@ const questaoInicial = {
   status: 'ativa',
   imagens: [],
   anexos: [],
+  temRubrica: false,
+  classificadaPorIA: false,
+  classificacaoIAStatus: '',
+  classificacaoIAGeradaEm: '',
+  classificacaoIARevisadaEm: '',
+  classificacaoIAModelo: '',
 };
 
 function toFormData(questao) {
@@ -61,7 +68,7 @@ function toFormData(questao) {
     disciplinaId: questao.disciplinaId || '',
     assuntoId: questao.assuntoId || '',
     subassuntoId: questao.subassuntoId || '',
-    dificuldade: questao.dificuldade === 'media' ? 'medio' : questao.dificuldade || '',
+    dificuldade: normalizarDificuldade(questao.dificuldade),
     tags: questao.tagsNomes || questao.tags || [],
     alternativas: Array.isArray(questao.alternativas) ? questao.alternativas : [],
     imagens: normalizarImagensQuestao(questao.imagens),
@@ -140,21 +147,23 @@ export default function QuestaoForm({
     .map((subassunto) => ({ value: subassunto.id, label: subassunto.nome })), [opcoes.subassuntos, form.assuntoId]);
 
   const update = (field, value) => {
+    const nextValue = field === 'dificuldade' ? normalizarDificuldade(value) : value;
+
     setForm((current) => ({
       ...current,
-      [field]: value,
-      ...(field === 'tipo' && value === 'codigo_analise' && !current.textoAntesCodigo && !current.codigo && current.enunciado
+      [field]: nextValue,
+      ...(field === 'tipo' && nextValue === 'codigo_analise' && !current.textoAntesCodigo && !current.codigo && current.enunciado
         ? { textoAntesCodigo: current.enunciado }
         : {}),
-      ...(field === 'tipo' && value !== 'codigo_analise' && current.tipo === 'codigo_analise'
+      ...(field === 'tipo' && nextValue !== 'codigo_analise' && current.tipo === 'codigo_analise'
         ? { enunciado: enunciadoParaSalvar(current) }
         : {}),
       ...(field === 'disciplinaId' ? { assuntoId: '', subassuntoId: '' } : {}),
       ...(field === 'assuntoId' ? { subassuntoId: '' } : {}),
-      ...(field === 'tipo' && value === 'multipla_escolha' && current.alternativas.length === 0
+      ...(field === 'tipo' && nextValue === 'multipla_escolha' && current.alternativas.length === 0
         ? { alternativas: [alternativaVazia(0), alternativaVazia(1), alternativaVazia(2)] }
         : {}),
-      ...(field === 'tipo' && value !== 'multipla_escolha' ? { alternativas: [] } : {}),
+      ...(field === 'tipo' && nextValue !== 'multipla_escolha' ? { alternativas: [] } : {}),
     }));
   };
 
@@ -339,13 +348,14 @@ export default function QuestaoForm({
     setSavingAction(cadastrarOutra ? 'another' : 'save');
 
     try {
+      const dificuldade = normalizarDificuldade(form.dificuldade);
       const payload = {
         ...form,
         textoAntesCodigo: form.tipo === 'codigo_analise' ? form.textoAntesCodigo.trim() : '',
         codigo: form.tipo === 'codigo_analise' ? form.codigo.trim() : '',
         enunciado: enunciadoParaSalvar(form),
         subassuntoId: form.subassuntoId || '',
-        dificuldade: form.dificuldade || null,
+        dificuldade: dificuldade || null,
         nivelBloom: form.nivelBloom || null,
         tags: form.tags,
         imagens: normalizarImagensQuestao(form.imagens),
@@ -353,7 +363,6 @@ export default function QuestaoForm({
           ? form.alternativas.filter((alternativa) => alternativa.texto.trim())
           : [],
       };
-
       await onSubmit(payload, { cadastrarOutra });
       setUploadedImagePaths([]);
 

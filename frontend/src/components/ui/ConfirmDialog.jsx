@@ -6,6 +6,7 @@ export default function ConfirmDialog({
   description,
   confirmLabel = 'Confirmar',
   cancelLabel = 'Cancelar',
+  confirmVariant,
   danger = false,
   loading = false,
   onConfirm,
@@ -15,19 +16,23 @@ export default function ConfirmDialog({
     return null;
   }
 
+  const descriptionContent = typeof description === 'string'
+    ? <p>{description}</p>
+    : <div className="confirm-dialog-description">{description}</div>;
+
   return (
     <div className="dialog-backdrop" role="presentation">
       <section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
         <div>
           <h3 id="confirm-dialog-title">{title}</h3>
-          {description ? <p>{description}</p> : null}
+          {description ? descriptionContent : null}
         </div>
 
         <div className="dialog-actions">
           <Button type="button" variant="secondary" disabled={loading} onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button type="button" variant={danger ? 'danger' : 'primary'} disabled={loading} onClick={onConfirm}>
+          <Button type="button" variant={confirmVariant || (danger ? 'danger' : 'primary')} disabled={loading} onClick={onConfirm}>
             {loading ? 'Processando...' : confirmLabel}
           </Button>
         </div>

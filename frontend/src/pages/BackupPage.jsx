@@ -37,6 +37,7 @@ export default function BackupPage() {
       { label: 'Tags', value: summary.tags },
       { label: 'Questões', value: summary.questoes },
       { label: 'Listas', value: summary.listas },
+      { label: 'Rubricas', value: summary.rubricas },
     ];
   }, [summary]);
 

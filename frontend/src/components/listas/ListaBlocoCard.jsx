@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, GripVertical, Trash2 } from 'lucide-react';
+import { normalizarDificuldade } from '../../constants/dificuldades.js';
 import Button from '../ui/Button.jsx';
 import Input from '../ui/Input.jsx';
 import Select from '../ui/Select.jsx';
@@ -14,9 +15,11 @@ export default function ListaBlocoCard({
   onRemove,
 }) {
   const update = (field, value) => {
+    const nextValue = field === 'dificuldade' ? normalizarDificuldade(value) : value;
+
     onChange(bloco.id, {
       ...bloco,
-      [field]: value,
+      [field]: nextValue,
       ...(field === 'disciplinaId' ? { assuntoId: '', subassuntoId: '' } : {}),
       ...(field === 'assuntoId' ? { subassuntoId: '' } : {}),
     });

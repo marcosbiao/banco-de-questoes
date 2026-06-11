@@ -1,5 +1,6 @@
-import { Archive, Pencil } from 'lucide-react';
+import { Archive, ListChecks, Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { obterRotuloDificuldade } from '../../constants/dificuldades.js';
 import Badge from '../ui/Badge.jsx';
 import Button from '../ui/Button.jsx';
 import Card from '../ui/Card.jsx';
@@ -15,12 +16,6 @@ const tipoLabels = {
   arquivo_anexo: 'Questão com arquivo anexado',
 };
 
-const dificuldadeLabels = {
-  facil: 'Fácil',
-  medio: 'Médio',
-  dificil: 'Difícil',
-};
-
 const statusLabels = {
   ativa: 'Ativa',
   em_revisao: 'Em revisão',
@@ -33,10 +28,12 @@ const statusVariants = {
   arquivada: 'neutral',
 };
 
-export default function QuestaoCard({ questao, onArquivar }) {
+export default function QuestaoCard({ questao, onArquivar, onExcluir, onRubrica }) {
   const tags = questao.tagsNomes || questao.tags || [];
   const pathItems = [questao.disciplina, questao.assunto, questao.subassunto].filter(Boolean);
   const status = questao.status || 'ativa';
+  const dificuldadeLabel = obterRotuloDificuldade(questao.dificuldade);
+  const temRubrica = questao.temRubrica === true;
 
   return (
     <Card className="questao-card">
@@ -47,16 +44,21 @@ export default function QuestaoCard({ questao, onArquivar }) {
           </p>
           <h3>{questao.enunciado}</h3>
         </div>
-        <Badge variant={statusVariants[status] || 'neutral'}>
-          {statusLabels[status] || status}
-        </Badge>
+        <div className="tag-row">
+          <Badge variant={statusVariants[status] || 'neutral'}>
+            {statusLabels[status] || status}
+          </Badge>
+          <Badge variant={temRubrica ? 'success' : 'neutral'}>
+            {temRubrica ? 'Com rubrica' : 'Sem rubrica'}
+          </Badge>
+        </div>
       </div>
 
       <QuestaoImagens imagens={questao.imagens} />
 
       <div className="meta-grid">
         <span>{tipoLabels[questao.tipo] || questao.tipo}</span>
-        {questao.dificuldade ? <span>{dificuldadeLabels[questao.dificuldade] || questao.dificuldade}</span> : null}
+        {dificuldadeLabel ? <span>{dificuldadeLabel}</span> : null}
       </div>
 
       <div className="tag-row">
@@ -70,8 +72,14 @@ export default function QuestaoCard({ questao, onArquivar }) {
           <Pencil size={18} aria-hidden="true" />
           <span>Editar</span>
         </Link>
-        <Button type="button" variant="danger" icon={Archive} disabled={questao.status === 'arquivada'} onClick={() => onArquivar?.(questao.id)}>
+        <Button type="button" variant="secondary" icon={ListChecks} onClick={() => onRubrica?.(questao)}>
+          Rubrica
+        </Button>
+        <Button type="button" variant="warning" icon={Archive} disabled={questao.status === 'arquivada'} onClick={() => onArquivar?.(questao.id)}>
           Arquivar
+        </Button>
+        <Button type="button" variant="danger" icon={Trash2} onClick={() => onExcluir?.(questao.id)}>
+          Excluir
         </Button>
       </div>
     </Card>

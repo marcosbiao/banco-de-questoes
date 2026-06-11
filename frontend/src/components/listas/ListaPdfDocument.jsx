@@ -1,5 +1,6 @@
 import QuestaoImagens from '../questoes/QuestaoImagens.jsx';
 import { normalizarImagensQuestao } from '../../utils/questionImages.js';
+import { montarItensComCabecalhosDoBloco } from '../../utils/ordenacaoQuestoes.js';
 
 function text(value) {
   if (value === undefined || value === null) return '';
@@ -174,6 +175,29 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
             page-break-inside: avoid;
           }
 
+          .pdf-group-heading {
+            max-width: 100%;
+            margin: 10px 0 6px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            page-break-after: avoid;
+          }
+
+          .pdf-group-heading-subject {
+            padding: 6px 8px;
+            border-left: 3px solid #9ca3af;
+            background: #f3f4f6;
+            color: #111827;
+            font-size: 13px;
+            font-weight: 700;
+          }
+
+          .pdf-group-heading-subtopic {
+            color: #374151;
+            font-size: 12px;
+            font-weight: 700;
+          }
+
           .pdf-question-title {
             margin: 0 0 6px;
             color: #111827;
@@ -299,6 +323,7 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
             .pdf-header,
             .pdf-instructions,
             .pdf-block,
+            .pdf-group-heading,
             .pdf-question,
             .pdf-alternatives,
             .pdf-gabarito,
@@ -312,6 +337,7 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
             .pdf-header-value,
             .pdf-instructions,
             .pdf-block-title,
+            .pdf-group-heading,
             .pdf-enunciado,
             .pdf-code,
             .pdf-alternative,
@@ -367,7 +393,24 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
             {blocoIndex + 1}. {text(bloco.tituloBloco || bloco.titulo) || `Bloco ${blocoIndex + 1}`}
           </h2>
 
-          {(bloco.questoes || []).map((questao, questaoIndex) => {
+          {montarItensComCabecalhosDoBloco(bloco.questoes || [], bloco).map((item, itemIndex) => {
+            if (item.tipo === 'cabecalho_assunto') {
+              return (
+                <h3 className="pdf-group-heading pdf-group-heading-subject" key={item.key}>
+                  Assunto: {item.titulo}
+                </h3>
+              );
+            }
+
+            if (item.tipo === 'cabecalho_subassunto') {
+              return (
+                <h4 className="pdf-group-heading pdf-group-heading-subtopic" key={item.key}>
+                  Subassunto: {item.titulo}
+                </h4>
+              );
+            }
+
+            const questao = item.questao;
             numeroQuestao += 1;
             const alternativas = Array.isArray(questao.alternativas) ? questao.alternativas : [];
             const tags = Array.isArray(questao.tagsNomes) ? questao.tagsNomes.filter(Boolean) : [];
@@ -375,7 +418,7 @@ export default function ListaPdfDocument({ lista, incluirGabarito = false }) {
             const hasGabarito = Boolean(questao.respostaCorreta || questao.explicacao || questao.observacaoPedagogica);
 
             return (
-              <article className="pdf-question" key={questao.id || questaoIndex}>
+              <article className="pdf-question" key={item.key || questao.id || itemIndex}>
                 <p className="pdf-question-title">Questão {numeroQuestao}</p>
 
                 {hasSeparatedCode(questao) ? (

@@ -1,3 +1,5 @@
+import { normalizarDificuldade } from '../../constants/dificuldades.js';
+import { ordenarQuestoesDoBloco } from '../../utils/ordenacaoQuestoes.js';
 import { gerarIdComPrefixo } from '../../utils/textNormalizer.js';
 import {
   atualizarDocumento,
@@ -9,6 +11,31 @@ import {
 } from './firestoreClient.js';
 import { listarQuestoes } from './questoesFirestoreService.js';
 
+function text(value) {
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+}
+
+function requireListaId(id, message = 'Informe o id da lista.') {
+  const listaId = text(id);
+
+  if (!listaId) {
+    throw new Error(message);
+  }
+
+  return listaId;
+}
+
+function requireQuestaoId(id, message = 'Informe o id da questão.') {
+  const questaoId = text(id);
+
+  if (!questaoId) {
+    throw new Error(message);
+  }
+
+  return questaoId;
+}
+
 function idsFrom(value) {
   if (Array.isArray(value)) {
     return value.filter(Boolean);
@@ -19,6 +46,34 @@ function idsFrom(value) {
   }
 
   return [];
+}
+
+function questaoIdsFromBloco(bloco = {}) {
+  return [
+    ...idsFrom(bloco.questoesIds),
+    ...(Array.isArray(bloco.questoes)
+      ? bloco.questoes.map((questao) => (typeof questao === 'string' ? questao : questao?.id)).filter(Boolean)
+      : []),
+  ].map((id) => String(id));
+}
+
+function listaUsaQuestao(lista = {}, questaoId) {
+  const blocos = Array.isArray(lista.blocos) ? lista.blocos : [];
+
+  if (blocos.some((bloco) => questaoIdsFromBloco(bloco).includes(questaoId))) {
+    return true;
+  }
+
+  return (lista.questoesSelecionadas || []).some((item) => (
+    String(item?.questaoId || '') === questaoId && item?.removida !== true
+  ));
+}
+
+function totalQuestoesLista(lista = {}) {
+  return (lista.blocos || []).reduce((total, bloco) => {
+    const questoesIds = [...new Set(questaoIdsFromBloco(bloco))];
+    return total + questoesIds.length;
+  }, 0);
 }
 
 function normalizarCabecalho(cabecalho) {
@@ -72,7 +127,10 @@ async function completeBlocos(blocos = []) {
     .slice()
     .sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0))
     .map((bloco, index) => {
-      const questoesCompletas = (bloco.questoesIds || bloco.questoes?.map((questao) => questao.id) || [])
+      const questoesIds = bloco.questoesIds || (bloco.questoes || [])
+        .map((questao) => questao?.id)
+        .filter(Boolean);
+      const questoesCompletas = questoesIds
         .map((questaoId) => questoesById.get(questaoId))
         .filter(Boolean);
 
@@ -101,7 +159,7 @@ function normalizarBlocoParaSalvar(bloco, index) {
       subassuntoIds: idsFrom(bloco.filtros?.subassuntoIds),
       tagIds: idsFrom(bloco.filtros?.tagIds),
       tipo: bloco.filtros?.tipo || '',
-      dificuldade: bloco.filtros?.dificuldade || '',
+      dificuldade: normalizarDificuldade(bloco.filtros?.dificuldade) || '',
       competencia: bloco.filtros?.competencia || '',
       nivelBloom: bloco.filtros?.nivelBloom || '',
       status: bloco.filtros?.status || '',
@@ -142,12 +200,14 @@ export async function montarLista(payload) {
 
   for (const [index, bloco] of (payload.blocos || []).slice().sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0)).entries()) {
     const filtros = bloco.filtros || {};
+    const dificuldade = normalizarDificuldade(filtros.dificuldade);
     const removidas = idsFrom(bloco.questoesRemovidasIds);
     const questoes = await listarQuestoes({
       ...filtros,
       assuntoIds: idsFrom(filtros.assuntoIds),
       subassuntoIds: idsFrom(filtros.subassuntoIds),
       tagIds: idsFrom(filtros.tagIds),
+      dificuldade,
       status: filtros.status ?? 'ativa',
     });
     const selecionadas = [];
@@ -170,6 +230,11 @@ export async function montarLista(payload) {
       selecionadas.push(questao);
     }
 
+    const selecionadasOrdenadas = ordenarQuestoesDoBloco(selecionadas, {
+      ...bloco,
+      filtros,
+    });
+
     blocos.push({
       id: bloco.id || gerarIdComPrefixo('bloco'),
       ordem: index + 1,
@@ -180,18 +245,18 @@ export async function montarLista(payload) {
         subassuntoIds: idsFrom(filtros.subassuntoIds),
         tagIds: idsFrom(filtros.tagIds),
         tipo: filtros.tipo || '',
-        dificuldade: filtros.dificuldade || '',
+        dificuldade: dificuldade || '',
         competencia: filtros.competencia || '',
         nivelBloom: filtros.nivelBloom || '',
         status: filtros.status || '',
         search: filtros.search || '',
       },
-      questoesIds: selecionadas.map((questao) => questao.id),
+      questoesIds: selecionadasOrdenadas.map((questao) => questao.id),
       questoesRemovidasIds: [...new Set([...removidas, ...removidasEncontradas])],
       duplicadasIgnoradasIds: [...new Set(duplicadas)],
-      questoes: selecionadas,
+      questoes: selecionadasOrdenadas,
       totalEncontradas: questoes.length,
-      totalSelecionadas: selecionadas.length,
+      totalSelecionadas: selecionadasOrdenadas.length,
       totalDuplicadasIgnoradas: duplicadas.length,
       createdAt: bloco.createdAt || nowIso(),
       updatedAt: nowIso(),
@@ -227,11 +292,28 @@ export async function getListas(filtros = {}) {
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
 }
 
+export async function listarListasPorQuestao(questaoId) {
+  const id = requireQuestaoId(questaoId, 'Informe o id da questão para verificar listas vinculadas.');
+  const listas = await listarColecao('listas');
+
+  return listas
+    .filter((lista) => listaUsaQuestao(lista, id))
+    .map((lista) => ({
+      id: lista.id,
+      titulo: text(lista.titulo) || 'Lista sem título',
+      status: lista.status || 'ativa',
+      quantidadeQuestoes: totalQuestoesLista(lista),
+    }))
+    .sort((a, b) => String(a.titulo).localeCompare(String(b.titulo), 'pt-BR', {
+      sensitivity: 'base',
+    }));
+}
+
 export async function getListaPreview(id) {
   const lista = await buscarDocumento('listas', id);
 
   if (!lista) {
-    throw new Error('Lista não encontrada.');
+    throw new Error('Lista não encontrada ou removida.');
   }
 
   return {
@@ -264,7 +346,7 @@ export async function updateLista(id, payload) {
   const existing = await buscarDocumento('listas', id);
 
   if (!existing) {
-    throw new Error('Lista não encontrada.');
+    throw new Error('Lista não encontrada ou removida.');
   }
 
   const lista = normalizarListaParaSalvar({ ...existing, ...payload });
@@ -286,7 +368,19 @@ export async function arquivarLista(id) {
   return buscarDocumento('listas', id);
 }
 
-export async function deleteLista(id) {
-  await excluirDocumento('listas', id);
-  return { message: 'Lista excluída com sucesso.' };
+export async function excluirLista(id) {
+  const listaId = requireListaId(id, 'Informe o id da lista para excluir.');
+
+  try {
+    await excluirDocumento('listas', listaId);
+    return { message: 'Lista excluída com sucesso.' };
+  } catch (error) {
+    const wrappedError = new Error('Não foi possível excluir a lista.');
+    wrappedError.cause = error;
+    throw wrappedError;
+  }
+}
+
+export function deleteLista(id) {
+  return excluirLista(id);
 }

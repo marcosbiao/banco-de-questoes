@@ -30,19 +30,21 @@ const statusImportacaoOptions = [
 ];
 
 function filtrarQuestoes(questoes, filtro) {
+  const ativas = questoes.filter((questao) => !questao.removida);
+
   if (filtro === 'validas') {
-    return questoes.filter((questao) => questao.valida);
+    return ativas.filter((questao) => questao.valida);
   }
 
   if (filtro === 'alertas') {
-    return questoes.filter((questao) => questao.alertas?.length);
+    return ativas.filter((questao) => questao.alertas?.length);
   }
 
   if (filtro === 'duplicidades') {
-    return questoes.filter((questao) => questao.possivelDuplicidade);
+    return ativas.filter((questao) => questao.possivelDuplicidade);
   }
 
-  return questoes;
+  return ativas;
 }
 
 function reportItem(label, value) {
@@ -117,7 +119,7 @@ export default function ImportarQuestoesPage() {
       const nextQuestao = {
         ...questao,
         [field]: value,
-        ...(field === 'enunciado' ? { possivelDuplicidade: false, duplicidade: null } : {}),
+        ...(field === 'enunciado' ? { possivelDuplicidade: false, duplicidade: null, duplicidadeDecisao: '' } : {}),
       };
 
       return revalidarQuestaoLocal(nextQuestao, index);
@@ -127,7 +129,25 @@ export default function ImportarQuestoesPage() {
   function handleRemoveQuestao(uid) {
     setReport(null);
     setMessage('');
-    setQuestoes((current) => current.filter((questao) => questao.uid !== uid));
+    setQuestoes((current) => current.map((questao) => (
+      questao.uid === uid ? { ...questao, removida: true } : questao
+    )));
+  }
+
+  function handleSelecionarTodasValidas() {
+    setReport(null);
+    setMessage('');
+    setQuestoes((current) => current.map((questao) => (
+      questao.removida ? questao : { ...questao, selecionada: Boolean(questao.valida) }
+    )));
+  }
+
+  function handleDesmarcarTodas() {
+    setReport(null);
+    setMessage('');
+    setQuestoes((current) => current.map((questao) => (
+      questao.removida ? questao : { ...questao, selecionada: false }
+    )));
   }
 
   async function handleRevalidarDuplicidades() {
@@ -155,9 +175,26 @@ export default function ImportarQuestoesPage() {
       const atualizadas = await detectarPossiveisDuplicidades(questoes.map(revalidarQuestaoLocal));
       setQuestoes(atualizadas);
 
+      const selecionadasValidas = atualizadas.filter((questao) => (
+        !questao.removida && questao.valida && questao.selecionada !== false
+      ));
+
+      if (!selecionadasValidas.length) {
+        setMessage('Nenhuma questão válida selecionada para importação.');
+        return;
+      }
+
       const result = await importarQuestoesParaFirestore(atualizadas, { status: statusImportacao });
+      const errosQuestao = result.questoesErroImportacao?.length || 0;
+      const errosRubrica = result.rubricasErro?.length || 0;
+      const puladas = result.questoesPuladas?.length || 0;
+
       setReport(result);
-      setMessage(`${result.questoesImportadas.length} questões importadas com sucesso.`);
+      setMessage(
+        errosQuestao || errosRubrica || puladas
+          ? `${result.questoesImportadas.length} questões importadas. Revise os avisos no relatório final.`
+          : `${result.questoesImportadas.length} questões importadas com sucesso.`,
+      );
     } catch (apiError) {
       setError(apiError.message || 'Falha ao importar questões.');
     } finally {
@@ -222,7 +259,13 @@ export default function ImportarQuestoesPage() {
             <Button type="button" variant="secondary" icon={Search} disabled={loading || importing} onClick={handleRevalidarDuplicidades}>
               Revalidar duplicidades
             </Button>
-            <Button type="button" icon={Upload} disabled={importing || resumo.validas === 0} onClick={handleImportar}>
+            <Button type="button" variant="secondary" icon={CheckCircle} disabled={loading || importing || resumo.validas === 0} onClick={handleSelecionarTodasValidas}>
+              Selecionar todas válidas
+            </Button>
+            <Button type="button" variant="secondary" icon={RotateCcw} disabled={loading || importing || resumo.total === 0} onClick={handleDesmarcarTodas}>
+              Desmarcar todas
+            </Button>
+            <Button type="button" icon={Upload} disabled={importing || resumo.selecionadas === 0} onClick={handleImportar}>
               {importing ? 'Importando...' : 'Importar questões'}
             </Button>
           </section>
@@ -245,19 +288,56 @@ export default function ImportarQuestoesPage() {
             <CheckCircle size={22} aria-hidden="true" />
           </div>
           <ul className="import-report-list">
+            {reportItem('Total no arquivo', report.totalAnalisadas ?? questoes.length)}
+            {reportItem('Total selecionado', report.totalSelecionadas ?? 0)}
             {reportItem('Questões importadas', report.questoesImportadas.length)}
+            {reportItem('Erros ao importar questões', report.questoesErroImportacao?.length || 0)}
             {reportItem('Disciplinas criadas', report.disciplinasCriadas.length)}
             {reportItem('Assuntos criados', report.assuntosCriados.length)}
             {reportItem('Subassuntos criados', report.subassuntosCriados.length)}
             {reportItem('Tags criadas', report.tagsCriadas.length)}
+            {reportItem('Questões com rubrica', report.rubricasImportadas.length)}
+            {reportItem('Rubricas salvas', report.rubricasImportadas.length)}
+            {reportItem('Erros ao salvar rubricas', report.rubricasErro?.length || 0)}
+            {reportItem('Questões sem rubrica', report.questoesSemRubrica.length)}
             {reportItem('Questões puladas', report.questoesPuladas.length)}
-            {reportItem('Possíveis duplicidades importadas', report.duplicidadesImportadas.length)}
+            {reportItem('Ignoradas ou desmarcadas', report.questoesIgnoradas?.length || 0)}
+            {reportItem('Possíveis duplicidades analisadas', report.duplicidadesAnalisadas || 0)}
+            {reportItem('Duplicidades importadas mesmo assim', report.duplicidadesImportadas.length)}
+            {reportItem('Duplicidades ignoradas', report.duplicidadesIgnoradas?.length || 0)}
           </ul>
           {report.questoesPuladas.length ? (
             <div className="import-alert-list">
               {report.questoesPuladas.map((questao, index) => (
                 <p key={`pulada-${index}`} className="error-message">
-                  Questão {questao.numero} pulada: {questao.motivos.join(' ')}
+                  {questao.referencia || `Questão ${questao.numero}`} pulada: {questao.motivos.join(' ')}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {report.questoesErroImportacao?.length ? (
+            <div className="import-alert-list">
+              {report.questoesErroImportacao.map((questao, index) => (
+                <p key={`erro-questao-${index}`} className="error-message">
+                  {questao.referencia || `Questão ${questao.numero}`}: {questao.mensagem}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {report.rubricasErro?.length ? (
+            <div className="import-alert-list">
+              {report.rubricasErro.map((rubrica, index) => (
+                <p key={`erro-rubrica-${index}`} className="error-message">
+                  Rubrica de {rubrica.referencia || rubrica.questaoId}: {rubrica.mensagem}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {report.questoesIgnoradas?.length ? (
+            <div className="import-alert-list">
+              {report.questoesIgnoradas.map((questao, index) => (
+                <p key={`ignorada-${index}`} className="status-message">
+                  {questao.referencia || `Questão ${questao.numero}`} ignorada: {questao.motivo}
                 </p>
               ))}
             </div>

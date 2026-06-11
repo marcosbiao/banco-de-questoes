@@ -6,7 +6,10 @@ export { buscarSugestoesTags, criarTag, listarTags } from './tagsService.js';
 export {
   arquivarQuestao,
   atualizarQuestao,
+  atualizarMarcadorRubricaQuestao,
   buscarQuestao,
   criarQuestao,
+  excluirQuestao,
+  excluirQuestaoComDependencias,
   listarQuestoes,
 } from './firebase/questoesFirestoreService.js';

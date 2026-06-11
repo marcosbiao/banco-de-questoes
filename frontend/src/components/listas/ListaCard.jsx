@@ -1,10 +1,10 @@
-import { Archive, Eye, Pencil } from 'lucide-react';
+import { Archive, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Badge from '../ui/Badge.jsx';
 import Button from '../ui/Button.jsx';
 import Card from '../ui/Card.jsx';
 
-export default function ListaCard({ lista, onArquivar }) {
+export default function ListaCard({ lista, onArquivar, onExcluir }) {
   return (
     <Card className="questao-card">
       <div className="questao-card-header">
@@ -27,8 +27,11 @@ export default function ListaCard({ lista, onArquivar }) {
           <Eye size={18} aria-hidden="true" />
           <span>Prévia</span>
         </Link>
-        <Button type="button" variant="danger" icon={Archive} disabled={lista.status === 'arquivada'} onClick={() => onArquivar(lista.id)}>
+        <Button type="button" variant="warning" icon={Archive} disabled={lista.status === 'arquivada'} onClick={() => onArquivar(lista.id)}>
           Arquivar
+        </Button>
+        <Button type="button" variant="danger" icon={Trash2} onClick={() => onExcluir(lista.id)}>
+          Excluir
         </Button>
       </div>
     </Card>

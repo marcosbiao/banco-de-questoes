@@ -31,8 +31,9 @@ export default function EditarQuestaoPage() {
   }, [id]);
 
   async function handleSubmit(payload) {
-    await atualizarQuestao(id, payload);
+    const questaoAtualizada = await atualizarQuestao(id, payload);
     navigate('/questoes');
+    return questaoAtualizada;
   }
 
   return (

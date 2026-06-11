@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import ListaForm from '../components/listas/ListaForm.jsx';
 import ErrorMessage from '../components/ui/ErrorMessage.jsx';
 import LoadingState from '../components/ui/LoadingState.jsx';
@@ -40,6 +40,13 @@ export default function EditarListaPage() {
 
       {loading ? <LoadingState message="Carregando lista..." /> : null}
       <ErrorMessage message={error} />
+      {!loading && error ? (
+        <div className="card-actions">
+          <Link className="button button-secondary button-md" to="/listas">
+            Voltar para listas
+          </Link>
+        </div>
+      ) : null}
       {!loading && !error && lista ? (
         <ListaForm
           mode="edit"

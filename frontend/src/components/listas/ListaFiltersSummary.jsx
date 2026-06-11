@@ -1,3 +1,4 @@
+import { obterRotuloDificuldade } from '../../constants/dificuldades.js';
 import Badge from '../ui/Badge.jsx';
 
 const statusLabels = {
@@ -13,6 +14,7 @@ export default function ListaFiltersSummary({ bloco, opcoes }) {
   const assuntoNomes = (filtros.assuntoIds || []).map((id) => opcoes.assuntos.find((item) => item.value === id)?.label).filter(Boolean);
   const subassuntoNomes = (filtros.subassuntoIds || []).map((id) => opcoes.subassuntos.find((item) => item.value === id)?.label).filter(Boolean);
   const tagNomes = (filtros.tagIds || []).map((id) => opcoes.tags.find((item) => item.value === id)?.label).filter(Boolean);
+  const dificuldade = obterRotuloDificuldade(filtros.dificuldade);
   const status = statusLabels[filtros.status] || (opcoes.statuses || []).find((item) => item.value === filtros.status)?.label || filtros.status;
   const labels = [
     disciplina,
@@ -20,7 +22,7 @@ export default function ListaFiltersSummary({ bloco, opcoes }) {
     ...subassuntoNomes,
     ...tagNomes,
     filtros.tipo,
-    filtros.dificuldade,
+    dificuldade,
     filtros.nivelBloom,
     filtros.competencia,
     status,

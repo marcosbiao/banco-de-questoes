@@ -1,17 +1,35 @@
-import { gerarIdComPrefixo, normalizarTexto } from '../../utils/textNormalizer.js';
+import { normalizarDificuldade } from '../../constants/dificuldades.js';
+import { gerarIdComPrefixo, normalizarTags, normalizarTexto } from '../../utils/textNormalizer.js';
 import { normalizarImagensQuestao } from '../../utils/questionImages.js';
 import { listarAssuntos } from './assuntosFirestoreService.js';
 import { listarDisciplinas } from './disciplinasFirestoreService.js';
 import {
   atualizarDocumento,
   buscarDocumento,
+  excluirDocumento,
   listarColecao,
   nowIso,
   salvarDocumento,
 } from './firestoreClient.js';
 import { removerImagemQuestaoStorage } from './questaoImagensStorageService.js';
+import { removerRubricaQuestao } from './rubricasFirestoreService.js';
 import { listarSubassuntos } from './subassuntosFirestoreService.js';
 import { garantirTags } from './tagsFirestoreService.js';
+
+function text(value) {
+  if (value === undefined || value === null) return '';
+  return String(value).trim();
+}
+
+function requireQuestaoId(id, message = 'Informe o id da questão.') {
+  const questaoId = text(id);
+
+  if (!questaoId) {
+    throw new Error(message);
+  }
+
+  return questaoId;
+}
 
 function valuesFromFilter(value) {
   if (Array.isArray(value)) {
@@ -85,6 +103,30 @@ function optionalId(data, existing, field) {
   return existing[field] ? String(existing[field]) : '';
 }
 
+function optionalDificuldade(data, existing) {
+  if (Object.prototype.hasOwnProperty.call(data, 'dificuldade')) {
+    return normalizarDificuldade(data.dificuldade) || null;
+  }
+
+  return normalizarDificuldade(existing.dificuldade) || null;
+}
+
+function optionalBoolean(data, existing, field, defaultValue = false) {
+  if (Object.prototype.hasOwnProperty.call(data, field)) {
+    return Boolean(data[field]);
+  }
+
+  return Boolean(existing[field] ?? defaultValue);
+}
+
+function optionalString(data, existing, field) {
+  if (Object.prototype.hasOwnProperty.call(data, field)) {
+    return data[field] ? String(data[field]) : '';
+  }
+
+  return existing[field] ? String(existing[field]) : '';
+}
+
 async function enriquecerQuestoes(questoes) {
   const [disciplinas, assuntos, subassuntos] = await Promise.all([
     listarDisciplinas(),
@@ -105,10 +147,16 @@ async function enriquecerQuestoes(questoes) {
 }
 
 function filtrarQuestao(questao, filtros = {}) {
-  for (const campo of ['disciplinaId', 'assuntoId', 'subassuntoId', 'tipo', 'dificuldade', 'status', 'nivelBloom']) {
+  for (const campo of ['disciplinaId', 'assuntoId', 'subassuntoId', 'tipo', 'status', 'nivelBloom']) {
     if (filtros[campo] && (questao[campo] || '') !== filtros[campo]) {
       return false;
     }
+  }
+
+  const dificuldade = normalizarDificuldade(filtros.dificuldade);
+
+  if (dificuldade && questao.dificuldade !== dificuldade) {
+    return false;
   }
 
   if (!matchesAny(questao.assuntoId, filtros.assuntoIds)) {
@@ -120,12 +168,20 @@ function filtrarQuestao(questao, filtros = {}) {
   }
 
   if (filtros.competencia) {
-    const competencia = normalizarTexto(filtros.competencia);
-    const textoCompetencia = normalizarTexto(questao.competencia || '');
+    const competencia = String(filtros.competencia).trim().toUpperCase();
+    const textoCompetencia = String(questao.competencia || '').trim().toUpperCase();
 
-    if (!textoCompetencia.includes(competencia)) {
+    if (textoCompetencia !== competencia) {
       return false;
     }
+  }
+
+  if (filtros.rubrica === 'com' && questao.temRubrica !== true) {
+    return false;
+  }
+
+  if (filtros.rubrica === 'sem' && questao.temRubrica === true) {
+    return false;
   }
 
   const tagIds = valuesFromFilter(filtros.tagIds);
@@ -167,8 +223,16 @@ async function normalizarPayload(data, existing = {}) {
     respostaCorreta = ['true', 'verdadeiro'].includes(respostaCorreta.toLowerCase()) ? 'verdadeiro' : 'falso';
   }
 
+  const tagsDiretasSemCriar = Boolean(data.tagsNomesSemCriarTags);
   const tagsInput = data.tags || data.tagsNomes || existing.tagsNomes || [];
-  const tags = await garantirTags(Array.isArray(tagsInput) ? tagsInput : []);
+  const tags = tagsDiretasSemCriar
+    ? {
+      ids: Array.isArray(data.tagsIds)
+        ? data.tagsIds.map((tagId) => String(tagId)).filter(Boolean)
+        : Array.isArray(existing.tagsIds) ? existing.tagsIds : [],
+      nomes: normalizarTags(Array.isArray(tagsInput) ? tagsInput : []),
+    }
+    : await garantirTags(Array.isArray(tagsInput) ? tagsInput : []);
 
   return {
     disciplinaId: data.disciplinaId ?? existing.disciplinaId ?? '',
@@ -181,7 +245,7 @@ async function normalizarPayload(data, existing = {}) {
     alternativas,
     respostaCorreta,
     explicacao: (data.explicacao ?? existing.explicacao ?? '').toString().trim(),
-    dificuldade: data.dificuldade ?? existing.dificuldade ?? '',
+    dificuldade: optionalDificuldade(data, existing),
     fonte: (data.fonte ?? existing.fonte ?? '').toString().trim(),
     competencia: (data.competencia ?? existing.competencia ?? '').toString().trim(),
     nivelBloom: data.nivelBloom ?? existing.nivelBloom ?? '',
@@ -191,6 +255,12 @@ async function normalizarPayload(data, existing = {}) {
     status: data.status ?? existing.status ?? 'ativa',
     imagens: normalizarImagensQuestao(data.imagens ?? existing.imagens ?? []),
     anexos: Array.isArray(data.anexos ?? existing.anexos) ? (data.anexos ?? existing.anexos) : [],
+    temRubrica: optionalBoolean(data, existing, 'temRubrica'),
+    classificadaPorIA: optionalBoolean(data, existing, 'classificadaPorIA'),
+    classificacaoIAStatus: optionalString(data, existing, 'classificacaoIAStatus'),
+    classificacaoIAGeradaEm: optionalString(data, existing, 'classificacaoIAGeradaEm'),
+    classificacaoIARevisadaEm: optionalString(data, existing, 'classificacaoIARevisadaEm'),
+    classificacaoIAModelo: optionalString(data, existing, 'classificacaoIAModelo'),
   };
 }
 
@@ -245,4 +315,44 @@ export async function arquivarQuestao(id) {
   });
 
   return buscarQuestao(id);
+}
+
+export async function atualizarMarcadorRubricaQuestao(id, temRubrica) {
+  const questaoId = requireQuestaoId(id, 'Informe o id da questão para atualizar o marcador de rubrica.');
+
+  await atualizarDocumento('questoes', questaoId, {
+    temRubrica: Boolean(temRubrica),
+    updatedAt: nowIso(),
+  });
+
+  return buscarQuestao(questaoId);
+}
+
+export async function excluirQuestao(id) {
+  const questaoId = requireQuestaoId(id, 'Informe o id da questão para excluir.');
+
+  try {
+    await excluirDocumento('questoes', questaoId);
+    return { message: 'Questão excluída com sucesso.' };
+  } catch (error) {
+    const wrappedError = new Error('Não foi possível excluir a questão.');
+    wrappedError.cause = error;
+    throw wrappedError;
+  }
+}
+
+export async function excluirQuestaoComDependencias(id) {
+  const questaoId = requireQuestaoId(id, 'Informe o id da questão para excluir.');
+
+  try {
+    await removerRubricaQuestao(questaoId);
+  } catch (error) {
+    const wrappedError = new Error('Não foi possível excluir a rubrica associada. A questão não foi excluída.');
+    wrappedError.cause = error;
+    throw wrappedError;
+  }
+
+  await excluirQuestao(questaoId);
+
+  return { message: 'Questão excluída com sucesso.' };
 }

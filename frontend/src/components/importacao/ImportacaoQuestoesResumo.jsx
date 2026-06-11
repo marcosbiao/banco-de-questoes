@@ -7,7 +7,12 @@ const labels = [
   ['subassuntos', 'Subassuntos'],
   ['tags', 'Tags'],
   ['validas', 'Válidas'],
+  ['selecionadas', 'Selecionadas'],
+  ['desmarcadas', 'Desmarcadas'],
   ['comAlertas', 'Com alerta'],
+  ['comErro', 'Com erro'],
+  ['comRubrica', 'Com rubrica'],
+  ['semRubrica', 'Sem rubrica'],
   ['possiveisDuplicidades', 'Duplicidades'],
 ];
 

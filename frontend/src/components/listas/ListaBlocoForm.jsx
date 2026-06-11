@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, GripVertical, RotateCcw, Trash2 } from 'lucide-react';
+import { normalizarDificuldade } from '../../constants/dificuldades.js';
 import { normalizarTexto } from '../../utils/textNormalizer.js';
 import { dificuldadeOptions, tipoOptions } from '../questoes/QuestaoFilters.jsx';
 import Badge from '../ui/Badge.jsx';
@@ -75,13 +76,14 @@ function filtrarQuestoesParaBloco(questoes, filtros) {
   const subassuntoIds = valuesFrom(filtros.subassuntoIds);
   const tagIds = valuesFrom(filtros.tagIds);
   const busca = normalizarTexto(filtros.search || '');
+  const dificuldade = normalizarDificuldade(filtros.dificuldade);
 
   return questoes.filter((questao) => {
     if (filtros.disciplinaId && questao.disciplinaId !== filtros.disciplinaId) return false;
     if (assuntoIds.length && !assuntoIds.includes(questao.assuntoId)) return false;
     if (subassuntoIds.length && !subassuntoIds.includes(questao.subassuntoId || '')) return false;
     if (filtros.tipo && questao.tipo !== filtros.tipo) return false;
-    if (filtros.dificuldade && questao.dificuldade !== filtros.dificuldade) return false;
+    if (dificuldade && questao.dificuldade !== dificuldade) return false;
     if (filtros.competencia && questao.competencia !== filtros.competencia) return false;
     if (filtros.nivelBloom && questao.nivelBloom !== filtros.nivelBloom) return false;
     if (filtros.status && (questao.status || 'ativa') !== filtros.status) return false;
@@ -126,11 +128,13 @@ export default function ListaBlocoForm({ bloco, index, total, opcoes, questoesDi
   const filtros = bloco.filtros;
   const update = (field, value) => onChange(bloco.id, { ...bloco, [field]: value });
   const updateFiltro = (field, value) => {
+    const nextValue = field === 'dificuldade' ? normalizarDificuldade(value) : value;
+
     onChange(bloco.id, {
       ...bloco,
       filtros: {
         ...filtros,
-        [field]: value,
+        [field]: nextValue,
         ...(field === 'disciplinaId' ? { assuntoIds: [], subassuntoIds: [] } : {}),
         ...(field === 'assuntoIds' ? { subassuntoIds: [] } : {}),
       },

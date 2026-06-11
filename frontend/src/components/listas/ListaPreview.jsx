@@ -1,6 +1,7 @@
 import Badge from '../ui/Badge.jsx';
 import EmptyState from '../ui/EmptyState.jsx';
 import { normalizarImagensQuestao } from '../../utils/questionImages.js';
+import { montarItensComCabecalhosDoBloco } from '../../utils/ordenacaoQuestoes.js';
 import QuestaoImagens from '../questoes/QuestaoImagens.jsx';
 
 function headerLines(cabecalho) {
@@ -48,13 +49,22 @@ export default function ListaPreview({ lista }) {
               <Badge>{bloco.questoes?.length || 0} questões</Badge>
             </div>
 
-            {(bloco.questoes || []).map((questao) => {
+            {montarItensComCabecalhosDoBloco(bloco.questoes || [], bloco).map((item) => {
+              if (item.tipo === 'cabecalho_assunto') {
+                return <h4 key={item.key} className="preview-group-heading preview-group-heading-subject">Assunto: {item.titulo}</h4>;
+              }
+
+              if (item.tipo === 'cabecalho_subassunto') {
+                return <h5 key={item.key} className="preview-group-heading preview-group-heading-subtopic">Subassunto: {item.titulo}</h5>;
+              }
+
+              const questao = item.questao;
               numeroQuestao += 1;
               const hasGabarito = Boolean(questao.respostaCorreta || questao.explicacao || questao.observacaoPedagogica);
               const imagens = normalizarImagensQuestao(questao.imagens);
 
               return (
-                <article key={questao.id} className="preview-question">
+                <article key={item.key} className="preview-question">
                   <div className="preview-question-top">
                     <strong>{numeroQuestao}.</strong>
                     {hasSeparatedCode(questao) ? (

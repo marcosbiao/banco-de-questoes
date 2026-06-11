@@ -12,7 +12,7 @@ export default function ImportacaoQuestoesPreview({ questoes, onChangeQuestao, o
         <ImportacaoQuestaoCard
           key={questao.uid}
           questao={questao}
-          numero={index + 1}
+          numero={Number.isInteger(questao.originalIndex) ? questao.originalIndex + 1 : index + 1}
           onChange={onChangeQuestao}
           onRemove={onRemoveQuestao}
         />

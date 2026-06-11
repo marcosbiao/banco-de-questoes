@@ -9,7 +9,7 @@ import EmptyState from '../components/ui/EmptyState.jsx';
 import Input from '../components/ui/Input.jsx';
 import LoadingState from '../components/ui/LoadingState.jsx';
 import Select from '../components/ui/Select.jsx';
-import { arquivarLista, getListas } from '../services/listasService.js';
+import { arquivarLista, excluirLista, getListas } from '../services/listasService.js';
 
 const filtrosIniciais = {
   search: '',
@@ -21,12 +21,16 @@ export default function ListasPage() {
   const [listas, setListas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [arquivarId, setArquivarId] = useState('');
   const [arquivando, setArquivando] = useState(false);
+  const [excluirId, setExcluirId] = useState('');
+  const [excluindo, setExcluindo] = useState(false);
 
   async function loadListas(params = filtros) {
     setLoading(true);
     setError('');
+    setMessage('');
 
     try {
       const data = await getListas(params);
@@ -45,6 +49,7 @@ export default function ListasPage() {
   async function handleArquivar(id) {
     setArquivando(true);
     setError('');
+    setMessage('');
 
     try {
       const listaArquivada = await arquivarLista(id);
@@ -60,6 +65,23 @@ export default function ListasPage() {
       setError(apiError.message);
     } finally {
       setArquivando(false);
+    }
+  }
+
+  async function handleExcluir(id) {
+    setExcluindo(true);
+    setError('');
+    setMessage('');
+
+    try {
+      await excluirLista(id);
+      setListas((current) => current.filter((lista) => lista.id !== id));
+      setExcluirId('');
+      setMessage('Lista excluída com sucesso.');
+    } catch (apiError) {
+      setError(apiError.message || 'Não foi possível excluir a lista.');
+    } finally {
+      setExcluindo(false);
     }
   }
 
@@ -95,11 +117,12 @@ export default function ListasPage() {
       {!loading && !error ? <p className="status-message">{listas.length} listas encontradas.</p> : null}
       {loading ? <LoadingState message="Carregando listas..." /> : null}
       <ErrorMessage message={error} />
+      {message ? <div className="message-box message-box-success">{message}</div> : null}
       {!loading && !error && listas.length === 0 ? <EmptyState title="Nenhuma lista encontrada" description="Crie uma lista para começar a montar exercícios." /> : null}
 
       <section className="questoes-list">
         {listas.map((lista) => (
-          <ListaCard key={lista.id} lista={lista} onArquivar={setArquivarId} />
+          <ListaCard key={lista.id} lista={lista} onArquivar={setArquivarId} onExcluir={setExcluirId} />
         ))}
       </section>
 
@@ -108,10 +131,21 @@ export default function ListasPage() {
         title="Arquivar lista?"
         description="A lista sairá da visualização de ativas, mas poderá ser consultada pelo filtro de arquivadas."
         confirmLabel="Arquivar"
-        danger
+        confirmVariant="warning"
         loading={arquivando}
         onCancel={() => setArquivarId('')}
         onConfirm={() => handleArquivar(arquivarId)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(excluirId)}
+        title="Excluir lista?"
+        description="Tem certeza que deseja excluir esta lista? Esta ação não poderá ser desfeita."
+        confirmLabel="Excluir"
+        danger
+        loading={excluindo}
+        onCancel={() => setExcluirId('')}
+        onConfirm={() => handleExcluir(excluirId)}
       />
     </div>
   );
