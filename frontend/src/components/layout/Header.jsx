@@ -9,7 +9,7 @@ export default function Header() {
     <header className="app-header">
       <div>
         <p className="eyebrow">Banco de Questões</p>
-        <h1>Gerador de Listas</h1>
+        <h1>Questões, Listas e Provas</h1>
       </div>
       <div className="header-actions">
         <div className="header-search" aria-label="Status da aplicação">

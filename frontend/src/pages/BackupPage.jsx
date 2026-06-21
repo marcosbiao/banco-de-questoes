@@ -35,9 +35,11 @@ export default function BackupPage() {
       { label: 'Assuntos', value: summary.assuntos },
       { label: 'Subassuntos', value: summary.subassuntos },
       { label: 'Tags', value: summary.tags },
+      { label: 'Fontes', value: summary.fontes },
       { label: 'Questões', value: summary.questoes },
-      { label: 'Listas', value: summary.listas },
       { label: 'Rubricas', value: summary.rubricas },
+      { label: 'Listas', value: summary.listas },
+      { label: 'Provas', value: summary.provas },
     ];
   }, [summary]);
 

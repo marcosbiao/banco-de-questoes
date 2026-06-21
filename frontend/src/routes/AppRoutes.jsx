@@ -9,7 +9,12 @@ import ListaPreviewPage from '../pages/ListaPreviewPage.jsx';
 import EditarQuestaoPage from '../pages/EditarQuestaoPage.jsx';
 import ListasPage from '../pages/ListasPage.jsx';
 import EditarListaPage from '../pages/EditarListaPage.jsx';
+import ProvasPage from '../pages/ProvasPage.jsx';
+import NovaProvaPage from '../pages/NovaProvaPage.jsx';
+import ProvaDetalhesPage from '../pages/ProvaDetalhesPage.jsx';
+import EditarProvaPage from '../pages/EditarProvaPage.jsx';
 import BackupPage from '../pages/BackupPage.jsx';
+import LimpezaMetadadosPage from '../pages/LimpezaMetadadosPage.jsx';
 import ImportarQuestoesPage from '../pages/ImportarQuestoesPage.jsx';
 import LoginPage from '../pages/LoginPage.jsx';
 
@@ -29,7 +34,12 @@ export default function AppRoutes() {
         <Route path="/listas/:id/editar" element={<EditarListaPage />} />
         <Route path="/listas/:id/preview" element={<ListaPreviewPage />} />
         <Route path="/listas/preview" element={<ListaPreviewPage />} />
+        <Route path="/provas" element={<ProvasPage />} />
+        <Route path="/provas/nova" element={<NovaProvaPage />} />
+        <Route path="/provas/:id" element={<ProvaDetalhesPage />} />
+        <Route path="/provas/:id/editar" element={<EditarProvaPage />} />
         <Route path="/backup" element={<BackupPage />} />
+        <Route path="/limpeza-metadados" element={<LimpezaMetadadosPage />} />
       </Route>
     </Routes>
   );

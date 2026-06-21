@@ -29,7 +29,24 @@ const rubricaOptions = [
   { value: 'sem', label: 'Sem rubrica' },
 ];
 
-export default function QuestaoFilters({ filtros, onChange, onApply, onClear, opcoes }) {
+export const bloomOptions = [
+  { value: 'lembrar', label: 'Lembrar' },
+  { value: 'compreender', label: 'Compreender' },
+  { value: 'aplicar', label: 'Aplicar' },
+  { value: 'analisar', label: 'Analisar' },
+  { value: 'avaliar', label: 'Avaliar' },
+  { value: 'criar', label: 'Criar' },
+];
+
+export default function QuestaoFilters({
+  filtros,
+  onChange,
+  onApply,
+  onClear,
+  opcoes,
+  canApply = true,
+  applying = false,
+}) {
   const update = (field, value) => {
     onChange({
       ...filtros,
@@ -48,13 +65,14 @@ export default function QuestaoFilters({ filtros, onChange, onApply, onClear, op
   const subassuntoOptions = opcoes.subassuntos
     .filter((subassunto) => !filtros.assuntoId || subassunto.assuntoId === filtros.assuntoId)
     .map((subassunto) => ({ value: subassunto.id, label: subassunto.nome }));
+  const fonteOptions = (opcoes.fontes || []).map((fonte) => ({ value: fonte.id, label: fonte.nome }));
 
   return (
     <section className="filters-panel">
       <Input
         label="Busca"
         name="search"
-        placeholder="Enunciado ou tag"
+        placeholder="Refina resultados filtrados"
         value={filtros.search}
         onChange={(event) => update('search', event.target.value)}
       />
@@ -103,11 +121,26 @@ export default function QuestaoFilters({ filtros, onChange, onApply, onClear, op
         onChange={(event) => update('competencia', event.target.value)}
       />
       <Select
+        label="Nível de Bloom"
+        name="nivelBloom"
+        value={filtros.nivelBloom}
+        options={bloomOptions}
+        onChange={(event) => update('nivelBloom', event.target.value)}
+      />
+      <Select
         label="Status"
         name="status"
         value={filtros.status}
         options={statusOptions}
         onChange={(event) => update('status', event.target.value)}
+      />
+      <Select
+        label="Fonte"
+        name="fonteId"
+        value={filtros.fonteId}
+        options={fonteOptions}
+        placeholder={fonteOptions.length ? 'Todas as fontes' : 'Nenhuma fonte cadastrada'}
+        onChange={(event) => update('fonteId', event.target.value)}
       />
       <Select
         label="Rubrica"
@@ -133,10 +166,10 @@ export default function QuestaoFilters({ filtros, onChange, onApply, onClear, op
           ))}
         </select>
       </label>
-      <Button type="button" icon={Search} onClick={onApply}>
-        Aplicar
+      <Button type="button" icon={Search} onClick={onApply} disabled={!canApply || applying}>
+        Buscar questões
       </Button>
-      <Button type="button" variant="secondary" icon={RotateCcw} onClick={onClear}>
+      <Button type="button" variant="secondary" icon={RotateCcw} onClick={onClear} disabled={applying}>
         Limpar
       </Button>
     </section>

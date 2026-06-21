@@ -904,10 +904,41 @@ a {
   accent-color: var(--accent);
 }
 
+.tipo-checkbox-panel {
+  align-content: start;
+}
+
+.checkbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.checkbox-option-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.checkbox-option-list .mini-check {
+  align-items: flex-start;
+}
+
+.checkbox-option-list .mini-check span {
+  line-height: 1.35;
+}
+
 .questoes-list,
 .blocos-stack {
   display: grid;
   gap: 14px;
+}
+
+.questoes-pagination-actions {
+  justify-content: center;
 }
 
 .export-filtered-card {
@@ -1368,6 +1399,150 @@ a {
   font-weight: 800;
 }
 
+.quota-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.competencia-quota-list,
+.diagnostic-list,
+.check-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.competencia-quota-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.competencia-quota-row .mini-check {
+  align-items: flex-start;
+}
+
+.competencia-quota-row .mini-check span {
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.compact-check {
+  min-height: auto;
+  padding-top: 0;
+}
+
+.prova-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.prova-filter-summary {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.prova-filter-summary span {
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.prova-summary-box {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #ffffff;
+}
+
+.prova-summary-box strong,
+.prova-summary-box span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.prova-summary-box > span {
+  color: var(--text);
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.prova-diagnostics {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.diagnostic-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #f0b7b0;
+  border-radius: var(--radius);
+  background: #fff1ef;
+  color: var(--danger);
+}
+
+.diagnostic-item span {
+  color: #7a332d;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.simple-list {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  line-height: 1.5;
+}
+
+.prova-question-review {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.review-question-number {
+  color: var(--accent-strong);
+  font-weight: 900;
+}
+
+.prova-question-body {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.prova-details-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
 .lista-preview {
   display: grid;
   gap: 18px;
@@ -1623,6 +1798,12 @@ a {
   color: var(--success-text);
 }
 
+.message-box-warning {
+  border: 1px solid #f0cf7a;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
 .loading-state {
   display: inline-flex;
   align-items: center;
@@ -1750,6 +1931,67 @@ a {
   gap: 12px;
 }
 
+.cleanup-backup-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.cleanup-backup-notice p {
+  flex: 1;
+  min-width: min(260px, 100%);
+  margin: 0;
+}
+
+.cleanup-summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.cleanup-metric-card {
+  min-height: 112px;
+}
+
+.cleanup-section {
+  display: grid;
+  gap: 14px;
+}
+
+.cleanup-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cleanup-section-heading h3 {
+  margin: 0 0 4px;
+  color: var(--text);
+}
+
+.cleanup-section-heading svg {
+  flex: 0 0 auto;
+  color: var(--warning-text);
+}
+
+.cleanup-table td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cleanup-diagnostic-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cleanup-bottom-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 
 @keyframes pulse-dot {
   0%,
@@ -1813,6 +2055,7 @@ a {
 @media (max-width: 1180px) {
   .filters-panel,
   .metrics-grid,
+  .quota-grid,
   .import-summary-grid,
   .form-grid.compact {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1877,6 +2120,8 @@ a {
 
   .metrics-grid,
   .import-summary-grid,
+  .quota-grid,
+  .prova-summary-grid,
   .import-upload-grid,
   .dashboard-panels-grid,
   .duplicate-summary-grid,
@@ -1888,7 +2133,9 @@ a {
   }
 
   .question-image-editor,
-  .image-metadata-grid {
+  .image-metadata-grid,
+  .competencia-quota-row,
+  .prova-question-review {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -1936,7 +2183,8 @@ a {
   .preview-bloco-title,
   .bloco-header,
   .inline-title,
-  .export-filtered-card {
+  .export-filtered-card,
+  .prova-details-header {
     flex-direction: column;
     align-items: stretch;
   }

@@ -1,12 +1,15 @@
 import {
   ChevronRight,
+  ClipboardList,
   Database,
   FilePlus2,
+  FileText,
   FileUp,
   LayoutDashboard,
   LibraryBig,
   ListChecks,
   ListPlus,
+  RefreshCw,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -32,6 +35,15 @@ const menuGroups = [
     ],
   },
   {
+    id: 'provas',
+    title: 'Provas',
+    icon: ClipboardList,
+    items: [
+      { to: '/provas', label: 'Minhas provas', icon: ClipboardList },
+      { to: '/provas/nova', label: 'Gerar prova balanceada', icon: FileText },
+    ],
+  },
+  {
     id: 'analise',
     title: 'Análise pedagógica',
     icon: LayoutDashboard,
@@ -45,6 +57,7 @@ const menuGroups = [
     icon: Database,
     items: [
       { to: '/backup', label: 'Backup e restauração', icon: Database },
+      { to: '/limpeza-metadados', label: 'Limpeza de metadados', icon: RefreshCw },
     ],
   },
 ];
@@ -86,7 +99,7 @@ export default function Sidebar() {
         <div className="brand-mark">BQ</div>
         <div>
           <strong>Banco</strong>
-          <span>Questões e listas</span>
+          <span>Questões, listas e provas</span>
         </div>
       </div>
 
@@ -117,7 +130,7 @@ export default function Sidebar() {
                     <NavLink
                       key={to}
                       to={to}
-                      end={to === '/questoes' || to === '/listas' || to === '/dashboard' || to === '/backup'}
+                      end={to === '/questoes' || to === '/listas' || to === '/provas' || to === '/dashboard' || to === '/backup' || to === '/limpeza-metadados'}
                       className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
                     >
                       <Icon size={18} aria-hidden="true" />

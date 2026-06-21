@@ -1,6 +1,5 @@
 export function normalizarTexto(value = '') {
-  return value
-    .toString()
+  return String(value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
@@ -8,6 +7,8 @@ export function normalizarTexto(value = '') {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
+
+export const normalizarTextoBusca = normalizarTexto;
 
 export function slugify(value = '') {
   return normalizarTexto(value).replace(/\s+/g, '-');

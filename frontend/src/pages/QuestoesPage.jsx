@@ -15,16 +15,25 @@ import {
   montarFiltrosAplicadosExportacao,
   nomeArquivoExportacao,
 } from '../services/exportacaoQuestoesService.js';
+import { METADADOS_ATUALIZADOS_EVENT } from '../services/firebase/limpezaMetadadosService.js';
 import { listarListasPorQuestao } from '../services/listasService.js';
 import {
   arquivarQuestao,
+  buscarQuestoesComFiltros,
   excluirQuestaoComDependencias,
+  listarFontes,
   listarAssuntos,
   listarDisciplinas,
-  listarQuestoes,
   listarSubassuntos,
   listarTags,
 } from '../services/questoesService.js';
+import {
+  clonarFiltrosQuestao,
+  possuiBuscaTextualSemFiltroConsultavel,
+  possuiFiltroBuscaValido,
+} from '../utils/questoesFiltros.js';
+
+const PAGE_SIZE = 20;
 
 const filtrosIniciais = {
   search: '',
@@ -34,12 +43,29 @@ const filtrosIniciais = {
   tipo: '',
   dificuldade: '',
   competencia: '',
+  nivelBloom: '',
   status: '',
+  fonteId: '',
   rubrica: 'todas',
   tagIds: [],
 };
 
 const CONFIRMACAO_EXCLUSAO_QUESTAO = 'Tem certeza que deseja excluir esta questão? Esta ação não poderá ser desfeita. A rubrica associada também será removida, caso exista.';
+
+function criarFiltrosIniciais() {
+  return {
+    ...filtrosIniciais,
+    tagIds: [],
+  };
+}
+
+function mensagemFiltroObrigatorio(filtros) {
+  if (possuiBuscaTextualSemFiltroConsultavel(filtros)) {
+    return 'Use a busca junto com pelo menos um filtro, como disciplina, assunto, fonte, tag, dificuldade, status ou rubrica.';
+  }
+
+  return 'Selecione pelo menos um filtro para realizar a busca.';
+}
 
 function descricaoExclusaoQuestao(listas = []) {
   if (!listas.length) {
@@ -69,11 +95,15 @@ function descricaoExclusaoQuestao(listas = []) {
 }
 
 export default function QuestoesPage() {
-  const [filtrosDraft, setFiltrosDraft] = useState(filtrosIniciais);
-  const [filtrosAplicados, setFiltrosAplicados] = useState(filtrosIniciais);
-  const [opcoes, setOpcoes] = useState({ disciplinas: [], assuntos: [], subassuntos: [], tags: [] });
+  const [filtrosDraft, setFiltrosDraft] = useState(() => criarFiltrosIniciais());
+  const [filtrosDaBuscaAtual, setFiltrosDaBuscaAtual] = useState(null);
+  const [opcoes, setOpcoes] = useState({ disciplinas: [], assuntos: [], subassuntos: [], tags: [], fontes: [] });
   const [questoes, setQuestoes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [buscaExecutada, setBuscaExecutada] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [ultimoDocumento, setUltimoDocumento] = useState(null);
+  const [temMaisResultados, setTemMaisResultados] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [arquivarId, setArquivarId] = useState('');
@@ -84,39 +114,130 @@ export default function QuestoesPage() {
   const [listasVinculadasExclusao, setListasVinculadasExclusao] = useState([]);
   const [rubricaQuestao, setRubricaQuestao] = useState(null);
   const [exportando, setExportando] = useState('');
+  const canBuscar = possuiFiltroBuscaValido(filtrosDraft) && !loadingOptions;
 
   useEffect(() => {
+    let mounted = true;
+
     async function loadOptions() {
-      const [disciplinas, assuntos, subassuntos, tags] = await Promise.all([
+      setLoadingOptions(true);
+      const [disciplinas, assuntos, subassuntos, tags, fontes] = await Promise.all([
         listarDisciplinas(),
         listarAssuntos(),
         listarSubassuntos(),
         listarTags(),
+        listarFontes(),
       ]);
 
-      setOpcoes({ disciplinas, assuntos, subassuntos, tags });
-    }
-
-    loadOptions().catch((apiError) => setError(apiError.message));
-  }, []);
-
-  useEffect(() => {
-    async function loadQuestoes(params) {
-      setLoading(true);
-      setError('');
-
-      try {
-        const data = await listarQuestoes(params);
-        setQuestoes(data);
-      } catch (apiError) {
-        setError(apiError.message);
-      } finally {
-        setLoading(false);
+      if (mounted) {
+        setOpcoes({ disciplinas, assuntos, subassuntos, tags, fontes });
+        setLoadingOptions(false);
       }
     }
 
-    loadQuestoes(filtrosAplicados);
-  }, [filtrosAplicados]);
+    if (import.meta.env.DEV) {
+      console.info('[Banco de questões] Página aberta sem consulta à coleção questoes.');
+    }
+
+    loadOptions().catch((apiError) => {
+      if (mounted) {
+        setError(apiError.message);
+        setLoadingOptions(false);
+      }
+    });
+
+    function handleMetadadosAtualizados() {
+      loadOptions().catch((apiError) => {
+        if (mounted) {
+          setError(apiError.message);
+          setLoadingOptions(false);
+        }
+      });
+    }
+
+    window.addEventListener(METADADOS_ATUALIZADOS_EVENT, handleMetadadosAtualizados);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener(METADADOS_ATUALIZADOS_EVENT, handleMetadadosAtualizados);
+    };
+  }, []);
+
+  async function executarBusca({ filtros, ultimo = null, append = false }) {
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const resultado = await buscarQuestoesComFiltros(filtros, {
+        limite: PAGE_SIZE,
+        ultimoDocumento: ultimo,
+        metadados: opcoes,
+      });
+
+      setQuestoes((current) => {
+        if (!append) {
+          return resultado.questoes;
+        }
+
+        const idsAtuais = new Set(current.map((questao) => questao.id));
+        const novasQuestoes = resultado.questoes.filter((questao) => !idsAtuais.has(questao.id));
+
+        return [...current, ...novasQuestoes];
+      });
+      setUltimoDocumento(resultado.ultimoDocumento);
+      setTemMaisResultados(resultado.temMaisResultados);
+      setFiltrosDaBuscaAtual(resultado.filtros);
+      setBuscaExecutada(true);
+    } catch (apiError) {
+      console.error('Erro ao buscar questões com filtros:', apiError);
+      setError(apiError.message || 'Não foi possível buscar questões.');
+      if (!append) {
+        setQuestoes([]);
+        setUltimoDocumento(null);
+        setTemMaisResultados(false);
+        setBuscaExecutada(true);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleBuscarQuestoes() {
+    if (!possuiFiltroBuscaValido(filtrosDraft)) {
+      setError(mensagemFiltroObrigatorio(filtrosDraft));
+      return;
+    }
+
+    setQuestoes([]);
+    setUltimoDocumento(null);
+    setTemMaisResultados(false);
+    setFiltrosDaBuscaAtual(clonarFiltrosQuestao(filtrosDraft));
+    await executarBusca({ filtros: filtrosDraft });
+  }
+
+  async function handleCarregarMais() {
+    if (!filtrosDaBuscaAtual || !ultimoDocumento || loading || !temMaisResultados) {
+      return;
+    }
+
+    await executarBusca({
+      filtros: filtrosDaBuscaAtual,
+      ultimo: ultimoDocumento,
+      append: true,
+    });
+  }
+
+  function handleLimparFiltros() {
+    setFiltrosDraft(criarFiltrosIniciais());
+    setFiltrosDaBuscaAtual(null);
+    setQuestoes([]);
+    setUltimoDocumento(null);
+    setTemMaisResultados(false);
+    setBuscaExecutada(false);
+    setError('');
+    setMessage('');
+  }
 
   async function handleArquivar(id) {
     setError('');
@@ -126,7 +247,7 @@ export default function QuestoesPage() {
     try {
       const questaoArquivada = await arquivarQuestao(id);
       setQuestoes((current) => {
-        if (filtrosAplicados.status === 'ativa') {
+        if (filtrosDaBuscaAtual?.status && questaoArquivada.status !== filtrosDaBuscaAtual.status) {
           return current.filter((questao) => questao.id !== id);
         }
 
@@ -193,8 +314,8 @@ export default function QuestoesPage() {
       }
 
       const removerPorFiltroRubrica = (
-        (filtrosAplicados.rubrica === 'com' && questaoAtualizada.temRubrica !== true)
-        || (filtrosAplicados.rubrica === 'sem' && questaoAtualizada.temRubrica === true)
+        (filtrosDaBuscaAtual?.rubrica === 'com' && questaoAtualizada.temRubrica !== true)
+        || (filtrosDaBuscaAtual?.rubrica === 'sem' && questaoAtualizada.temRubrica === true)
       );
 
       if (removerPorFiltroRubrica) {
@@ -210,7 +331,7 @@ export default function QuestoesPage() {
   }
 
   function filtrosParaExportacao() {
-    return montarFiltrosAplicadosExportacao(filtrosAplicados, opcoes);
+    return montarFiltrosAplicadosExportacao(filtrosDaBuscaAtual || criarFiltrosIniciais(), opcoes);
   }
 
   function handleExportarSemRubricas() {
@@ -284,28 +405,31 @@ export default function QuestoesPage() {
         filtros={filtrosDraft}
         opcoes={opcoes}
         onChange={setFiltrosDraft}
-        onApply={() => setFiltrosAplicados(filtrosDraft)}
-        onClear={() => {
-          setFiltrosDraft(filtrosIniciais);
-          setFiltrosAplicados(filtrosIniciais);
-        }}
+        onApply={handleBuscarQuestoes}
+        onClear={handleLimparFiltros}
+        canApply={canBuscar}
+        applying={loading}
       />
 
-      {!loading && !error ? <p className="status-message">{questoes.length} questões encontradas.</p> : null}
-      {loading ? <LoadingState message="Carregando questões..." /> : null}
+      {loadingOptions ? <LoadingState message="Carregando filtros..." /> : null}
+      {!loadingOptions && !canBuscar && !buscaExecutada && !error ? (
+        <p className="status-message">{mensagemFiltroObrigatorio(filtrosDraft)}</p>
+      ) : null}
+      {buscaExecutada && !loading && !error ? <p className="status-message">{questoes.length} questões carregadas.</p> : null}
+      {loading ? <LoadingState message="Buscando questões..." /> : null}
       {verificandoExclusao ? <LoadingState message="Verificando listas vinculadas..." /> : null}
       {exportando ? <LoadingState message="Buscando rubricas das questões filtradas..." /> : null}
       <ErrorMessage message={error} />
       {message ? <div className="message-box message-box-success">{message}</div> : null}
 
-      {!loading && !error ? (
+      {buscaExecutada && !loading && !error ? (
         <section className="card export-filtered-card">
           <div>
             <p className="eyebrow">Exportação filtrada</p>
-            <h3>Exportar {questoes.length} questões filtradas</h3>
+            <h3>Exportar {questoes.length} questões carregadas</h3>
             <p className="status-message">
               {questoes.length
-                ? 'O JSON usa exatamente as questões exibidas agora na tela.'
+                ? 'O JSON usa exatamente as questões carregadas agora na tela.'
                 : 'Nenhuma questão filtrada para exportar.'}
             </p>
           </div>
@@ -320,8 +444,12 @@ export default function QuestoesPage() {
         </section>
       ) : null}
 
-      {!loading && !error && questoes.length === 0 ? (
-        <EmptyState title="Nenhuma questão encontrada" description="Ajuste os filtros para ampliar a busca." />
+      {!loadingOptions && !buscaExecutada && !loading && !error ? (
+        <EmptyState title="Selecione pelo menos um filtro e clique em Buscar questões." description="A página carrega somente os filtros ao abrir; as questões serão consultadas sob demanda." />
+      ) : null}
+
+      {buscaExecutada && !loading && !error && questoes.length === 0 ? (
+        <EmptyState title="Nenhuma questão foi encontrada com os filtros selecionados." description="Ajuste os filtros e clique em Buscar questões novamente." />
       ) : null}
 
       <section className="questoes-list">
@@ -335,6 +463,14 @@ export default function QuestoesPage() {
           />
         ))}
       </section>
+
+      {buscaExecutada && questoes.length > 0 ? (
+        <div className="card-actions questoes-pagination-actions">
+          <Button type="button" variant="secondary" onClick={handleCarregarMais} disabled={loading || !temMaisResultados}>
+            {temMaisResultados ? 'Carregar mais' : 'Não há mais resultados'}
+          </Button>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         open={Boolean(arquivarId)}

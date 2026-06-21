@@ -1,5 +1,19 @@
+import {
+  collection,
+  getDocs,
+  limit,
+  query,
+  startAfter,
+  where,
+} from 'firebase/firestore';
 import { normalizarDificuldade } from '../../constants/dificuldades.js';
-import { gerarIdComPrefixo, normalizarTags, normalizarTexto } from '../../utils/textNormalizer.js';
+import {
+  clonarFiltrosQuestao,
+  possuiFiltroBuscaValido,
+  questaoCorrespondeAosFiltros,
+  valuesFromFilter,
+} from '../../utils/questoesFiltros.js';
+import { gerarIdComPrefixo, normalizarTags, normalizarTextoBusca } from '../../utils/textNormalizer.js';
 import { normalizarImagensQuestao } from '../../utils/questionImages.js';
 import { listarAssuntos } from './assuntosFirestoreService.js';
 import { listarDisciplinas } from './disciplinasFirestoreService.js';
@@ -9,12 +23,14 @@ import {
   excluirDocumento,
   listarColecao,
   nowIso,
+  requireDb,
   salvarDocumento,
 } from './firestoreClient.js';
 import { removerImagemQuestaoStorage } from './questaoImagensStorageService.js';
 import { removerRubricaQuestao } from './rubricasFirestoreService.js';
 import { listarSubassuntos } from './subassuntosFirestoreService.js';
 import { garantirTags } from './tagsFirestoreService.js';
+import { obterOuCriarFonte } from './fontesFirestoreService.js';
 
 function text(value) {
   if (value === undefined || value === null) return '';
@@ -29,23 +45,6 @@ function requireQuestaoId(id, message = 'Informe o id da questão.') {
   }
 
   return questaoId;
-}
-
-function valuesFromFilter(value) {
-  if (Array.isArray(value)) {
-    return value.filter(Boolean);
-  }
-
-  if (typeof value === 'string') {
-    return value.split(',').map((item) => item.trim()).filter(Boolean);
-  }
-
-  return [];
-}
-
-function matchesAny(actual, expected) {
-  const values = valuesFromFilter(expected);
-  return values.length === 0 || values.includes(actual || '');
 }
 
 function normalizarAlternativas(alternativas = []) {
@@ -133,6 +132,14 @@ async function enriquecerQuestoes(questoes) {
     listarAssuntos(),
     listarSubassuntos(),
   ]);
+
+  return enriquecerQuestoesComMetadados(questoes, { disciplinas, assuntos, subassuntos });
+}
+
+function enriquecerQuestoesComMetadados(questoes, metadados = {}) {
+  const disciplinas = metadados.disciplinas || [];
+  const assuntos = metadados.assuntos || [];
+  const subassuntos = metadados.subassuntos || [];
   const disciplinasById = new Map(disciplinas.map((item) => [item.id, item]));
   const assuntosById = new Map(assuntos.map((item) => [item.id, item]));
   const subassuntosById = new Map(subassuntos.map((item) => [item.id, item]));
@@ -144,69 +151,6 @@ async function enriquecerQuestoes(questoes) {
     subassunto: questao.subassuntoId ? subassuntosById.get(questao.subassuntoId)?.nome || '' : '',
     tags: questao.tagsNomes || [],
   }));
-}
-
-function filtrarQuestao(questao, filtros = {}) {
-  for (const campo of ['disciplinaId', 'assuntoId', 'subassuntoId', 'tipo', 'status', 'nivelBloom']) {
-    if (filtros[campo] && (questao[campo] || '') !== filtros[campo]) {
-      return false;
-    }
-  }
-
-  const dificuldade = normalizarDificuldade(filtros.dificuldade);
-
-  if (dificuldade && questao.dificuldade !== dificuldade) {
-    return false;
-  }
-
-  if (!matchesAny(questao.assuntoId, filtros.assuntoIds)) {
-    return false;
-  }
-
-  if (!matchesAny(questao.subassuntoId, filtros.subassuntoIds)) {
-    return false;
-  }
-
-  if (filtros.competencia) {
-    const competencia = String(filtros.competencia).trim().toUpperCase();
-    const textoCompetencia = String(questao.competencia || '').trim().toUpperCase();
-
-    if (textoCompetencia !== competencia) {
-      return false;
-    }
-  }
-
-  if (filtros.rubrica === 'com' && questao.temRubrica !== true) {
-    return false;
-  }
-
-  if (filtros.rubrica === 'sem' && questao.temRubrica === true) {
-    return false;
-  }
-
-  const tagIds = valuesFromFilter(filtros.tagIds);
-  const tagNomesNormalizados = (questao.tagsNomes || questao.tags || []).map((tag) => normalizarTexto(tag));
-  if (!tagIds.every((tagId) => (questao.tagsIds || []).includes(tagId) || tagNomesNormalizados.includes(normalizarTexto(tagId)))) {
-    return false;
-  }
-
-  const search = filtros.search || filtros.busca || '';
-  if (search) {
-    const busca = normalizarTexto(search);
-    const texto = normalizarTexto([
-      questao.enunciado,
-      questao.assunto,
-      questao.subassunto,
-      questao.competencia,
-      ...(questao.tagsNomes || questao.tags || []),
-    ].filter(Boolean).join(' '));
-
-    if (!texto.includes(busca)) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 async function normalizarPayload(data, existing = {}) {
@@ -233,6 +177,9 @@ async function normalizarPayload(data, existing = {}) {
       nomes: normalizarTags(Array.isArray(tagsInput) ? tagsInput : []),
     }
     : await garantirTags(Array.isArray(tagsInput) ? tagsInput : []);
+  const fonte = (data.fonte ?? existing.fonte ?? '').toString().trim();
+  const fonteCatalogo = fonte ? await obterOuCriarFonte(fonte) : null;
+  const fonteBusca = fonteCatalogo?.nomeBusca || normalizarTextoBusca(fonte);
 
   return {
     disciplinaId: data.disciplinaId ?? existing.disciplinaId ?? '',
@@ -246,7 +193,9 @@ async function normalizarPayload(data, existing = {}) {
     respostaCorreta,
     explicacao: (data.explicacao ?? existing.explicacao ?? '').toString().trim(),
     dificuldade: optionalDificuldade(data, existing),
-    fonte: (data.fonte ?? existing.fonte ?? '').toString().trim(),
+    fonteId: fonteCatalogo?.id || '',
+    fonte,
+    fonteBusca,
     competencia: (data.competencia ?? existing.competencia ?? '').toString().trim(),
     nivelBloom: data.nivelBloom ?? existing.nivelBloom ?? '',
     tagsIds: tags.ids,
@@ -266,7 +215,111 @@ async function normalizarPayload(data, existing = {}) {
 
 export async function listarQuestoes(filtros = {}) {
   const questoes = await enriquecerQuestoes(await listarColecao('questoes'));
-  return questoes.filter((questao) => filtrarQuestao(questao, filtros));
+  return questoes.filter((questao) => questaoCorrespondeAosFiltros(questao, filtros));
+}
+
+function adicionarFiltroIgualdade(restricoes, field, value) {
+  const filtro = text(value);
+
+  if (filtro) {
+    restricoes.push(where(field, '==', filtro));
+  }
+}
+
+function montarRestricoesBusca(filtros = {}) {
+  const restricoes = [];
+  const dificuldade = normalizarDificuldade(filtros.dificuldade);
+  const tagIds = valuesFromFilter(filtros.tagIds);
+  const rubrica = filtros.rubrica || 'todas';
+
+  adicionarFiltroIgualdade(restricoes, 'disciplinaId', filtros.disciplinaId);
+  adicionarFiltroIgualdade(restricoes, 'assuntoId', filtros.assuntoId);
+  adicionarFiltroIgualdade(restricoes, 'subassuntoId', filtros.subassuntoId);
+  adicionarFiltroIgualdade(restricoes, 'tipo', filtros.tipo);
+  adicionarFiltroIgualdade(restricoes, 'competencia', filtros.competencia);
+  adicionarFiltroIgualdade(restricoes, 'nivelBloom', filtros.nivelBloom);
+  adicionarFiltroIgualdade(restricoes, 'status', filtros.status);
+  adicionarFiltroIgualdade(restricoes, 'fonteId', filtros.fonteId);
+
+  if (dificuldade) {
+    restricoes.push(where('dificuldade', '==', dificuldade));
+  }
+
+  if (rubrica === 'com') {
+    restricoes.push(where('temRubrica', '==', true));
+  }
+
+  if (rubrica === 'sem') {
+    restricoes.push(where('temRubrica', '==', false));
+  }
+
+  if (tagIds.length) {
+    // O Firestore permite apenas um array-contains por query. A regra da interface
+    // continua sendo AND para tags: a primeira tag reduz a leitura e as demais
+    // são conferidas localmente somente sobre essa página reduzida.
+    restricoes.push(where('tagsIds', 'array-contains', tagIds[0]));
+  }
+
+  return restricoes;
+}
+
+function isMissingIndexError(error) {
+  return error?.code === 'failed-precondition' || /index/i.test(error?.message || '');
+}
+
+export async function buscarQuestoesComFiltros(filtros = {}, opcoes = {}) {
+  if (!possuiFiltroBuscaValido(filtros)) {
+    throw new Error('Selecione pelo menos um filtro para realizar a busca.');
+  }
+
+  const db = requireDb();
+  const limite = Number.isInteger(opcoes.limite) && opcoes.limite > 0 ? opcoes.limite : 20;
+  const filtrosNormalizados = clonarFiltrosQuestao(filtros);
+  const restricoes = montarRestricoesBusca(filtrosNormalizados);
+  const queryConstraints = [
+    ...restricoes,
+    ...(opcoes.ultimoDocumento ? [startAfter(opcoes.ultimoDocumento)] : []),
+    limit(limite),
+  ];
+
+  try {
+    if (import.meta.env.DEV) {
+      console.info('[Banco de questões] Consulta Firestore em questoes executada.', {
+        filtros: filtrosNormalizados,
+        limite,
+        paginaSeguinte: Boolean(opcoes.ultimoDocumento),
+      });
+    }
+
+    const snapshot = await getDocs(query(collection(db, 'questoes'), ...queryConstraints));
+    const documentos = snapshot.docs.map((documentSnapshot) => ({
+      id: documentSnapshot.id,
+      ...documentSnapshot.data(),
+    }));
+    const questoesEnriquecidas = enriquecerQuestoesComMetadados(documentos, opcoes.metadados);
+    const questoesFiltradas = questoesEnriquecidas.filter((questao) => (
+      questaoCorrespondeAosFiltros(questao, filtrosNormalizados)
+    ));
+    const ultimoDocumento = snapshot.docs[snapshot.docs.length - 1] || null;
+
+    return {
+      questoes: questoesFiltradas,
+      ultimoDocumento,
+      temMaisResultados: snapshot.docs.length === limite,
+      quantidadeLida: snapshot.docs.length,
+      filtros: filtrosNormalizados,
+    };
+  } catch (error) {
+    if (isMissingIndexError(error)) {
+      console.error('Erro de índice do Firestore ao buscar questões. Use o link de criação indicado pelo Firebase:', error);
+      const wrappedError = new Error('Esta combinação de filtros precisa de um índice adicional no Firestore.');
+      wrappedError.code = 'missing-index';
+      wrappedError.cause = error;
+      throw wrappedError;
+    }
+
+    throw error;
+  }
 }
 
 export async function buscarQuestao(id) {

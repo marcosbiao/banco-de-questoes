@@ -4,9 +4,12 @@ import { normalizarDificuldade } from '../../constants/dificuldades.js';
 import {
   criarAssunto,
   criarDisciplina,
+  criarFonte,
   criarSubassunto,
+  fonteIdFromNome,
   listarAssuntos,
   listarDisciplinas,
+  listarFontes,
   listarSubassuntos,
 } from '../../services/questoesService.js';
 import { removerImagemQuestaoStorage, uploadImagemQuestao } from '../../services/firebase/questaoImagensStorageService.js';
@@ -39,6 +42,7 @@ const questaoInicial = {
   enunciado: '',
   alternativas: [],
   dificuldade: '',
+  fonteId: '',
   fonte: '',
   competencia: '',
   nivelBloom: '',
@@ -69,6 +73,8 @@ function toFormData(questao) {
     assuntoId: questao.assuntoId || '',
     subassuntoId: questao.subassuntoId || '',
     dificuldade: normalizarDificuldade(questao.dificuldade),
+    fonteId: questao.fonteId || fonteIdFromNome(questao.fonte || ''),
+    fonte: questao.fonte || '',
     tags: questao.tagsNomes || questao.tags || [],
     alternativas: Array.isArray(questao.alternativas) ? questao.alternativas : [],
     imagens: normalizarImagensQuestao(questao.imagens),
@@ -112,7 +118,7 @@ export default function QuestaoForm({
   onSubmit,
 }) {
   const [form, setForm] = useState(() => toFormData(initialData));
-  const [opcoes, setOpcoes] = useState({ disciplinas: [], assuntos: [], subassuntos: [] });
+  const [opcoes, setOpcoes] = useState({ disciplinas: [], assuntos: [], subassuntos: [], fontes: [] });
   const [savingAction, setSavingAction] = useState('');
   const [uploadingImages, setUploadingImages] = useState(false);
   const [uploadedImagePaths, setUploadedImagePaths] = useState([]);
@@ -126,13 +132,14 @@ export default function QuestaoForm({
 
   useEffect(() => {
     async function loadOptions() {
-      const [disciplinas, assuntos, subassuntos] = await Promise.all([
+      const [disciplinas, assuntos, subassuntos, fontes] = await Promise.all([
         listarDisciplinas(),
         listarAssuntos(),
         listarSubassuntos(),
+        listarFontes(),
       ]);
 
-      setOpcoes({ disciplinas, assuntos, subassuntos });
+      setOpcoes({ disciplinas, assuntos, subassuntos, fontes });
     }
 
     loadOptions().catch((apiError) => setError(apiError.message));
@@ -145,6 +152,16 @@ export default function QuestaoForm({
   const subassuntoOptions = useMemo(() => opcoes.subassuntos
     .filter((subassunto) => !form.assuntoId || subassunto.assuntoId === form.assuntoId)
     .map((subassunto) => ({ value: subassunto.id, label: subassunto.nome })), [opcoes.subassuntos, form.assuntoId]);
+
+  const fonteOptions = useMemo(() => {
+    const options = opcoes.fontes.map((fonte) => ({ value: fonte.id, label: fonte.nome }));
+
+    if (form.fonte && form.fonteId && !options.some((option) => option.value === form.fonteId)) {
+      return [...options, { value: form.fonteId, label: form.fonte }];
+    }
+
+    return options;
+  }, [form.fonte, form.fonteId, opcoes.fontes]);
 
   const update = (field, value) => {
     const nextValue = field === 'dificuldade' ? normalizarDificuldade(value) : value;
@@ -183,6 +200,32 @@ export default function QuestaoForm({
     const subassunto = await criarSubassunto({ nome, disciplinaId: form.disciplinaId, assuntoId: form.assuntoId });
     setOpcoes((current) => ({ ...current, subassuntos: addOrReplaceById(current.subassuntos, subassunto) }));
     update('subassuntoId', subassunto.id);
+  }
+
+  function handleFonteChange(fonteId) {
+    const fonte = opcoes.fontes.find((item) => item.id === fonteId)
+      || (form.fonteId === fonteId && form.fonte ? { id: form.fonteId, nome: form.fonte } : null);
+
+    setForm((current) => ({
+      ...current,
+      fonteId: fonte?.id || '',
+      fonte: fonte?.nome || '',
+    }));
+  }
+
+  async function handleCreateFonte(nome) {
+    const fonte = await criarFonte(nome);
+
+    if (!fonte) {
+      return;
+    }
+
+    setOpcoes((current) => ({ ...current, fontes: addOrReplaceById(current.fontes, fonte) }));
+    setForm((current) => ({
+      ...current,
+      fonteId: fonte.id,
+      fonte: fonte.nome,
+    }));
   }
 
   function addAlternativa() {
@@ -583,11 +626,15 @@ export default function QuestaoForm({
             options={dificuldadeOptions}
             onChange={(event) => update('dificuldade', event.target.value)}
           />
-          <Input
+          <QuickCreateSelect
             label="Fonte"
-            name="fonte"
-            value={form.fonte}
-            onChange={(event) => update('fonte', event.target.value)}
+            name="fonteId"
+            value={form.fonteId}
+            options={fonteOptions}
+            createLabel="Nova fonte"
+            placeholder="Sem fonte"
+            onChange={handleFonteChange}
+            onCreate={handleCreateFonte}
           />
           <Input
             label="Competência"

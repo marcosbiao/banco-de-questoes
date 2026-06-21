@@ -1,8 +1,10 @@
 import { collection, deleteDoc, doc, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/firebase.js';
+import { normalizarTextoBusca } from '../../utils/textNormalizer.js';
+import { fonteIdFromNome } from './fontesFirestoreService.js';
 import { listarColecao, requireDb, salvarDocumento } from './firestoreClient.js';
 
-const BACKUP_COLLECTIONS = ['disciplinas', 'assuntos', 'subassuntos', 'tags', 'questoes', 'listas', 'rubricas'];
+const BACKUP_COLLECTIONS = ['disciplinas', 'assuntos', 'subassuntos', 'tags', 'fontes', 'questoes', 'rubricas', 'listas', 'provas'];
 const BACKUP_VERSION = 1;
 
 export async function exportarBackupCompleto() {
@@ -78,7 +80,7 @@ export async function importarBackupMesclando(backup) {
         throw new Error(`Documento sem id em ${collectionName}.`);
       }
 
-      const documentData = normalizeDocumentData(documento);
+      const documentData = normalizeDocumentData(collectionName, documento);
       await salvarDocumento(collectionName, documento.id, documentData);
     }
   }
@@ -141,9 +143,23 @@ function serializeDocument(documento) {
   return copy;
 }
 
-function normalizeDocumentData(documento) {
+function normalizeDocumentData(collectionName, documento) {
   const normalized = { ...documento };
   delete normalized.id;
+
+  if (collectionName === 'questoes') {
+    const fonte = normalized.fonte ? String(normalized.fonte).trim() : '';
+    normalized.fonte = fonte;
+    normalized.fonteBusca = normalizarTextoBusca(fonte);
+    normalized.fonteId = fonte ? String(normalized.fonteId || fonteIdFromNome(fonte)).trim() : '';
+  }
+
+  if (collectionName === 'fontes') {
+    const nome = normalized.nome ? String(normalized.nome).trim() : '';
+    normalized.nome = nome;
+    normalized.nomeBusca = normalizarTextoBusca(nome);
+  }
+
   return normalized;
 }
 

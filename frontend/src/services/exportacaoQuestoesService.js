@@ -57,6 +57,7 @@ export function normalizarQuestaoParaExportacao(questao = {}) {
     explicacao: text(questao.explicacao),
     observacaoPedagogica: text(questao.observacaoPedagogica),
     dificuldade: questao.dificuldade || '',
+    fonte: text(questao.fonte),
     competencia: text(questao.competencia),
     nivelBloom: text(questao.nivelBloom),
     tagsNomes: safeArray(questao.tagsNomes || questao.tags).map((tag) => text(tag)).filter(Boolean),
@@ -87,6 +88,7 @@ export function montarFiltrosAplicadosExportacao(filtros = {}, opcoes = {}) {
   const disciplina = safeArray(opcoes.disciplinas).find((item) => item.id === filtros.disciplinaId);
   const assunto = safeArray(opcoes.assuntos).find((item) => item.id === filtros.assuntoId);
   const subassunto = safeArray(opcoes.subassuntos).find((item) => item.id === filtros.subassuntoId);
+  const fonte = safeArray(opcoes.fontes).find((item) => item.id === filtros.fonteId);
   const tagIds = safeArray(filtros.tagIds);
   const tags = tagIds.map((tagId) => safeArray(opcoes.tags).find((tag) => tag.id === tagId)?.nome || tagId);
 
@@ -102,6 +104,8 @@ export function montarFiltrosAplicadosExportacao(filtros = {}, opcoes = {}) {
     rubrica: filtros.rubrica || 'todas',
     status: filtros.status || '',
     tipo: filtros.tipo || '',
+    fonte: fonte?.nome || '',
+    fonteId: filtros.fonteId || '',
     tags,
     busca: filtros.search || '',
   };
